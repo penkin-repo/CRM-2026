@@ -115,56 +115,76 @@ export function App() {
 
   const setClients = useCallback((next: Client[], action?: string, desc?: string) => {
     const snap = currentSnap();
+    const prev = clients;
     setClientsRaw(next);
-    const added = next.filter(n => !clients.find(c => c.id === n.id));
-    const updated = next.filter(n => clients.find(c => c.id === n.id));
-    const removed = clients.filter(c => !next.find(n => n.id === c.id));
+    const added = next.filter(n => !prev.find(c => c.id === n.id));
+    const updated = next.filter(n => prev.find(c => c.id === n.id && JSON.stringify(c) !== JSON.stringify(n)));
+    const removed = prev.filter(c => !next.find(n => n.id === c.id));
     Promise.all([
       ...[...added, ...updated].map(upsertClient),
       ...removed.map(c => deleteClient(c.id)),
-    ]);
+    ]).catch(err => {
+      console.error('setClients API error:', err);
+      setClientsRaw(prev);
+      alert('Ошибка сохранения клиента: ' + (err?.message ?? err));
+    });
     if (action) recordHistory(action, desc || action, snap);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, contractors, payers, orders]);
 
   const setContractors = useCallback((next: Contractor[], action?: string, desc?: string) => {
     const snap = currentSnap();
+    const prev = contractors;
     setContractorsRaw(next);
-    const added = next.filter(n => !contractors.find(c => c.id === n.id));
-    const updated = next.filter(n => contractors.find(c => c.id === n.id));
-    const removed = contractors.filter(c => !next.find(n => n.id === c.id));
+    const added = next.filter(n => !prev.find(c => c.id === n.id));
+    const updated = next.filter(n => prev.find(c => c.id === n.id && JSON.stringify(c) !== JSON.stringify(n)));
+    const removed = prev.filter(c => !next.find(n => n.id === c.id));
     Promise.all([
       ...[...added, ...updated].map(upsertContractor),
       ...removed.map(c => deleteContractor(c.id)),
-    ]);
+    ]).catch(err => {
+      console.error('setContractors API error:', err);
+      setContractorsRaw(prev);
+      alert('Ошибка сохранения подрядчика: ' + (err?.message ?? err));
+    });
     if (action) recordHistory(action, desc || action, snap);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, contractors, payers, orders]);
 
   const setPayers = useCallback((next: Payer[], action?: string, desc?: string) => {
     const snap = currentSnap();
+    const prev = payers;
     setPayersRaw(next);
-    const added = next.filter(n => !payers.find(p => p.id === n.id));
-    const updated = next.filter(n => payers.find(p => p.id === n.id));
-    const removed = payers.filter(p => !next.find(n => n.id === p.id));
+    const added = next.filter(n => !prev.find(p => p.id === n.id));
+    const updated = next.filter(n => prev.find(p => p.id === n.id && JSON.stringify(p) !== JSON.stringify(n)));
+    const removed = prev.filter(p => !next.find(n => n.id === p.id));
     Promise.all([
       ...[...added, ...updated].map(upsertPayer),
       ...removed.map(p => deletePayer(p.id)),
-    ]);
+    ]).catch(err => {
+      console.error('setPayers API error:', err);
+      setPayersRaw(prev);
+      alert('Ошибка сохранения плательщика: ' + (err?.message ?? err));
+    });
     if (action) recordHistory(action, desc || action, snap);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, contractors, payers, orders]);
 
   const setOrders = useCallback((next: Order[], action?: string, desc?: string) => {
     const snap = currentSnap();
+    const prev = orders;
     setOrdersRaw(next);
-    const added = next.filter(n => !orders.find(o => o.id === n.id));
-    const updated = next.filter(n => orders.find(o => o.id === n.id));
-    const removed = orders.filter(o => !next.find(n => n.id === o.id));
+    const added = next.filter(n => !prev.find(o => o.id === n.id));
+    const updated = next.filter(n => prev.find(o => o.id === n.id && JSON.stringify(o) !== JSON.stringify(n)));
+    const removed = prev.filter(o => !next.find(n => n.id === o.id));
     Promise.all([
       ...[...added, ...updated].map(upsertOrder),
       ...removed.map(o => deleteOrder(o.id)),
-    ]);
+    ]).catch(err => {
+      console.error('setOrders API error:', err);
+      setOrdersRaw(prev);
+      alert('Ошибка сохранения заказа: ' + (err?.message ?? err));
+    });
     if (action) recordHistory(action, desc || action, snap);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, contractors, payers, orders]);
