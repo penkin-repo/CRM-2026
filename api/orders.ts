@@ -4,7 +4,14 @@ import { getDb } from './db'
 export default async function handler(req: VercelRequest, res: VercelResponse){
   const db = getDb()
   if(req.method==='GET'){
-    const r = await db.execute('SELECT * FROM orders ORDER BY date DESC')
+    const userId = req.query.userId as string
+    let sql = 'SELECT * FROM orders ORDER BY date DESC'
+    let args: any[] = []
+    if(userId && userId !== 'usr_admin' && userId !== 'all') {
+      sql = "SELECT * FROM orders WHERE user_id = ? OR user_id = '' ORDER BY date DESC"
+      args = [userId]
+    }
+    const r = await db.execute({ sql, args })
     const rows = r.rows.map(row=>({
       id: row.id,
       date: row.date,
@@ -18,17 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       paymentReceived: !!row.payment_received,
       status: row.status,
       note: row.note,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      userId: (row as any).user_id || ''
     }))
     return res.json(rows)
   }
   if(req.method==='POST'){
     const b = req.body
     await db.execute({
-      sql: `INSERT INTO orders (id,date,client_id,product_name,contractors,sale_amount,sale_formula,payment_receiver_id,payment_note,payment_received,status,note,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT(id) DO UPDATE SET date=excluded.date, client_id=excluded.client_id, product_name=excluded.product_name, contractors=excluded.contractors, sale_amount=excluded.sale_amount, sale_formula=excluded.sale_formula, payment_receiver_id=excluded.payment_receiver_id, payment_note=excluded.payment_note, payment_received=excluded.payment_received, status=excluded.status, note=excluded.note`,
-      args: [b.id,b.date,b.clientId,b.productName||'',JSON.stringify(b.contractors||[]),b.saleAmount||0,b.saleFormula||'',b.paymentReceiverId||'',b.paymentNote||'',b.paymentReceived?1:0,b.status||'active',b.note||'',b.createdAt]
+      sql: `INSERT INTO orders (id,date,client_id,product_name,contractors,sale_amount,sale_formula,payment_receiver_id,payment_note,payment_received,status,note,created_at,user_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET date=excluded.date, client_id=excluded.client_id, product_name=excluded.product_name, contractors=excluded.contractors, sale_amount=excluded.sale_amount, sale_formula=excluded.sale_formula, payment_receiver_id=excluded.payment_receiver_id, payment_note=excluded.payment_note, payment_received=excluded.payment_received, status=excluded.status, note=excluded.note, user_id=excluded.user_id`,
+      args: [b.id,b.date,b.clientId,b.productName||'',JSON.stringify(b.contractors||[]),b.saleAmount||0,b.saleFormula||'',b.paymentReceiverId||'',b.paymentNote||'',b.paymentReceived?1:0,b.status||'active',b.note||'',b.createdAt,b.userId||'']
     })
     return res.json({ok:true})
   }

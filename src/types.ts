@@ -1,3 +1,12 @@
+export interface User {
+  id: string
+  username: string
+  password?: string
+  name: string
+  role: 'admin' | 'user'
+  createdAt?: string
+}
+
 export interface CustomField { label: string; value: string }
 
 export interface Client {
@@ -9,6 +18,7 @@ export interface Client {
   note: string
   customFields: CustomField[]
   createdAt: string
+  userId?: string
 }
 
 export interface Contractor {
@@ -17,6 +27,7 @@ export interface Contractor {
   phone: string
   note: string
   createdAt: string
+  userId?: string
 }
 
 export interface Payer {
@@ -24,6 +35,7 @@ export interface Payer {
   name: string
   type: 'cashless' | 'cash' | 'card'
   createdAt: string
+  userId?: string
 }
 
 export interface OrderContractorRow {
@@ -52,6 +64,7 @@ export interface Order {
   status: 'active' | 'completed'
   note: string
   createdAt: string
+  userId?: string
 }
 
 export interface HistoryEntry {
@@ -61,6 +74,7 @@ export interface HistoryEntry {
   description: string
   snapshot: { clients: Client[]; contractors: Contractor[]; payers: Payer[]; orders: Order[] }
   snapshotString?: string
+  userId?: string
 }
 
 export interface SalaryRecord {
@@ -75,6 +89,7 @@ export interface SalaryRecord {
   closedAt?: string
   note: string
   history: { timestamp: string; action: string; prevPaid: number; newPaid: number; note: string }[]
+  userId?: string
 }
 
 export type DashboardFilters = {

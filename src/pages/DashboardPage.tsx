@@ -1,157 +1,446 @@
-import { useMemo, useState, useEffect } from 'react'
-import { calcOrderTotals, evalFormula } from '../utils/formula'
+import { useState, useEffect, ChangeEvent } from 'react'
+import { api } from '../api'
+import type { Client, Contractor, Payer, Order, HistoryEntry, User } from '../types'
 
-// Это React-обёртка над v10 vanilla-прототипом.
-// Для продакшна мы оставляем логику компактной таблицы, но данные грузим через API (Turso) с фолбэком в localStorage.
+// Modular tab components
+import NavigationTabs, { ActiveTab } from '../components/NavigationTabs'
+import OrdersTab from '../components/OrdersTab'
+import ClientsTab from '../components/ClientsTab'
+import ContractorsTab from '../components/ContractorsTab'
+import PayersTab from '../components/PayersTab'
+import ReportsTab from '../components/ReportsTab'
+import HistoryTab from '../components/HistoryTab'
+import UsersTab from '../components/UsersTab'
 
-type PayerType = 'cashless' | 'cash' | 'card'
+interface DashboardPageProps {
+  currentUser: User
+}
 
-export default function DashboardPage(){
-  // Упрощённо: используем тот же LS ключ что и в прототипе v10, но если /api доступен — грузим оттуда
-  const [orders,setOrders]=useState<any[]>(()=>{
-    try{ const raw=localStorage.getItem('crm_v10_reports_fixed'); if(raw) return JSON.parse(raw).orders || []; }catch{}
-    return []
+export default function DashboardPage({ currentUser }: DashboardPageProps) {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('orders')
+
+  // Core entities state
+  const [orders, setOrders] = useState<Order[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [contractors, setContractors] = useState<Contractor[]>([])
+  const [payers, setPayers] = useState<Payer[]>([])
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+
+  // Filter States with localStorage persistence
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>(() => {
+    try {
+      const saved = localStorage.getItem('crm_1c_filters')
+      if (saved) return JSON.parse(saved).statusFilter || 'all'
+    } catch {}
+    return 'all'
   })
-  const [clients]=useState<any[]>([
-    {id:'c1',name:'ООО Альфа Медиа'},{id:'c2',name:'Бета Трейд'}
-  ])
-  const [payers,setPayers]=useState<any[]>([
-    {id:'p1',name:'ИП Иванов безнал',type:'cashless'},
-    {id:'p3',name:'Наличные',type:'cash'},
-    {id:'p4',name:'Карта',type:'card'},
-  ])
-  const [expanded,setExpanded]=useState<Record<string,boolean>>({})
-  const [activeCell,setActiveCell]=useState<{row:number,field:string,oid:string}|null>(null)
-  const [editBar,setEditBar]=useState('')
 
-  useEffect(()=>{
-    // попытка загрузить из Turso
-    fetch('/api/orders').then(r=> r.ok? r.json(): null).then(data=>{
-      if(data && Array.isArray(data) && data.length) setOrders(data)
-    }).catch(()=>{})
-    fetch('/api/payers').then(r=> r.ok? r.json(): null).then(data=>{
-      if(data && data.length) setPayers(data)
-    }).catch(()=>{})
-  },[])
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try {
+      const saved = localStorage.getItem('crm_1c_filters')
+      if (saved) return JSON.parse(saved).searchQuery || ''
+    } catch {}
+    return ''
+  })
 
-  const filtered = useMemo(()=> orders, [orders])
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('crm_1c_filters')
+      if (saved && JSON.parse(saved).selectedMonth) return JSON.parse(saved).selectedMonth
+    } catch {}
+    return new Date().toISOString().slice(0, 7)
+  })
 
-  const isCash = (payerId:string)=>{
-    const p=payers.find((x:any)=>x.id===payerId)
-    return p?.type==='cash'
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('crm_1c_filters')
+      if (saved) return JSON.parse(saved).dateFrom || ''
+    } catch {}
+    return ''
+  })
+
+  const [dateTo, setDateTo] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('crm_1c_filters')
+      if (saved) return JSON.parse(saved).dateTo || ''
+    } catch {}
+    return ''
+  })
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('crm_1c_filters', JSON.stringify({
+        statusFilter,
+        searchQuery,
+        selectedMonth,
+        dateFrom,
+        dateTo
+      }))
+    } catch {}
+  }, [statusFilter, searchQuery, selectedMonth, dateFrom, dateTo])
+
+  // Initial Data Load
+  const loadAllData = async () => {
+    try {
+      const [ordData, clData, coData, pyData, histData] = await Promise.all([
+        api.fetchOrders(currentUser.role === 'admin' ? undefined : currentUser.id).catch(() => []),
+        api.fetchClients().catch(() => []),
+        api.fetchContractors().catch(() => []),
+        api.fetchPayers().catch(() => []),
+        api.fetchHistory().catch(() => [])
+      ])
+      if (Array.isArray(ordData)) setOrders(ordData)
+      if (Array.isArray(clData)) setClients(clData)
+      if (Array.isArray(coData)) setContractors(coData)
+      if (Array.isArray(pyData)) setPayers(pyData)
+      if (Array.isArray(histData)) setHistory(histData)
+    } catch (e) {
+      console.error('Error loading data:', e)
+    }
+  }
+
+  useEffect(() => {
+    loadAllData()
+  }, [currentUser.id, currentUser.role])
+
+  // Sync state to localStorage fallback
+  useEffect(() => {
+    try {
+      localStorage.setItem('crm_v10_reports_fixed', JSON.stringify({ orders, clients, contractors, payers }))
+    } catch {}
+  }, [orders, clients, contractors, payers])
+
+  const logHistory = (action: string, description: string, currentSnapshot?: any) => {
+    const snap = currentSnapshot || { clients, contractors, payers, orders }
+    const entry: HistoryEntry = {
+      id: Math.random().toString(36).slice(2, 8),
+      timestamp: new Date().toLocaleString('ru-RU'),
+      action,
+      description,
+      snapshot: snap,
+      userId: currentUser.id
+    }
+    setHistory(h => [entry, ...h.slice(0, 49)])
+    api.saveHistory(entry).catch(() => {})
+  }
+
+  // --- Snapshot Restore ---
+  const handleRestoreSnapshot = async (entry: HistoryEntry) => {
+    if (!entry.snapshot) return
+    const confirmMsg = `Восстановить состояние базы данных на момент: "${entry.action} - ${entry.timestamp}"?`
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      const { orders: snapOrders, clients: snapClients, contractors: snapContractors, payers: snapPayers } = entry.snapshot
+
+      if (Array.isArray(snapOrders)) {
+        setOrders(snapOrders)
+        for (const o of snapOrders) await api.upsertOrder(o).catch(() => {})
+      }
+      if (Array.isArray(snapClients)) {
+        setClients(snapClients)
+        for (const c of snapClients) await api.upsertClient(c).catch(() => {})
+      }
+      if (Array.isArray(snapContractors)) {
+        setContractors(snapContractors)
+        for (const co of snapContractors) await api.upsertContractor(co).catch(() => {})
+      }
+      if (Array.isArray(snapPayers)) {
+        setPayers(snapPayers)
+        for (const p of snapPayers) await api.upsertPayer(p).catch(() => {})
+      }
+
+      logHistory('Восстановление снимка', `Восстановлен снимок #${entry.id} (${entry.action})`)
+      alert('Состояние успешно восстановлено!')
+    } catch (e) {
+      alert('Ошибка при восстановлении снимка')
+    }
+  }
+
+  // --- Orders Handlers ---
+  const handleAddOrder = () => {
+    const id = Math.random().toString(36).slice(2, 8)
+    const newOrd: Order = {
+      id,
+      date: new Date().toISOString().slice(0, 10),
+      clientId: clients[0]?.id || '',
+      productName: 'Новый заказ',
+      contractors: [],
+      saleAmount: 0,
+      paymentReceiverId: payers[0]?.id || '',
+      paymentNote: '',
+      paymentReceived: false,
+      status: 'active',
+      note: '',
+      createdAt: new Date().toISOString(),
+      userId: currentUser.id
+    }
+    const updated = [newOrd, ...orders]
+    setOrders(updated)
+    api.upsertOrder(newOrd).catch(() => {})
+    logHistory('Создание заказа', `Создан заказ #${id} пользователем ${currentUser.name}`, { clients, contractors, payers, orders: updated })
+  }
+
+  const handleCopyOrder = (order: Order) => {
+    const newId = Math.random().toString(36).slice(2, 8)
+    const copy: Order = {
+      ...order,
+      id: newId,
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString(),
+      userId: currentUser.id
+    }
+    const updated = [copy, ...orders]
+    setOrders(updated)
+    api.upsertOrder(copy).catch(() => {})
+    logHistory('Копирование заказа', `Скопирован заказ #${order.id} -> #${newId}`, { clients, contractors, payers, orders: updated })
+  }
+
+  const handleDeleteOrder = (id: string) => {
+    const updated = orders.filter(o => o.id !== id)
+    setOrders(updated)
+    api.deleteOrder(id).catch(() => {})
+    logHistory('Удаление заказа', `Удален заказ #${id}`, { clients, contractors, payers, orders: updated })
+  }
+
+  const handleUpdateOrder = (updated: Order, logDescription?: string) => {
+    const updatedOrders = orders.map(o => o.id === updated.id ? updated : o)
+    setOrders(updatedOrders)
+    api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
+    
+    // Log history entry for edits
+    const desc = logDescription || `Редактирование заказа #${updated.id}`
+    logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
+  }
+
+  // --- Clients Handlers ---
+  const handleAddClient = () => {
+    const newC: Client = {
+      id: 'c_' + Math.random().toString(36).slice(2, 7),
+      name: 'Новый клиент',
+      phone: '',
+      contactPerson: '',
+      email: '',
+      note: '',
+      customFields: [],
+      createdAt: new Date().toISOString(),
+      userId: currentUser.id
+    }
+    const updated = [newC, ...clients]
+    setClients(updated)
+    api.upsertClient(newC).catch(() => {})
+    logHistory('Создание клиента', `Добавлен клиент ${newC.name}`, { clients: updated, contractors, payers, orders })
+  }
+
+  const handleUpdateClient = (c: Client) => {
+    const updatedClients = clients.map(item => item.id === c.id ? c : item)
+    setClients(updatedClients)
+    api.upsertClient(c).catch(() => {})
+    logHistory('Правка клиента', `Изменены данные клиента ${c.name}`, { clients: updatedClients, contractors, payers, orders })
+  }
+
+  const handleDeleteClient = (id: string) => {
+    const updated = clients.filter(c => c.id !== id)
+    setClients(updated)
+    api.deleteClient(id).catch(() => {})
+    logHistory('Удаление клиента', `Удален клиент #${id}`, { clients: updated, contractors, payers, orders })
+  }
+
+  // --- Contractors Handlers ---
+  const handleAddContractor = () => {
+    const newCo: Contractor = {
+      id: 'co_' + Math.random().toString(36).slice(2, 7),
+      name: 'Новый подрядчик',
+      phone: '',
+      note: '',
+      createdAt: new Date().toISOString(),
+      userId: currentUser.id
+    }
+    const updated = [newCo, ...contractors]
+    setContractors(updated)
+    api.upsertContractor(newCo).catch(() => {})
+    logHistory('Создание подрядчика', `Добавлен подрядчик ${newCo.name}`, { clients, contractors: updated, payers, orders })
+  }
+
+  const handleUpdateContractor = (co: Contractor) => {
+    const updatedContractors = contractors.map(item => item.id === co.id ? co : item)
+    setContractors(updatedContractors)
+    api.upsertContractor(co).catch(() => {})
+    logHistory('Правка подрядчика', `Изменены данные подрядчика ${co.name}`, { clients, contractors: updatedContractors, payers, orders })
+  }
+
+  const handleDeleteContractor = (id: string) => {
+    const updated = contractors.filter(co => co.id !== id)
+    setContractors(updated)
+    api.deleteContractor(id).catch(() => {})
+    logHistory('Удаление подрядчика', `Удален подрядчик #${id}`, { clients, contractors: updated, payers, orders })
+  }
+
+  // --- Payers Handlers ---
+  const handleAddPayer = () => {
+    const newP: Payer = {
+      id: 'p_' + Math.random().toString(36).slice(2, 7),
+      name: 'Новый плательщик',
+      type: 'cashless',
+      createdAt: new Date().toISOString(),
+      userId: currentUser.id
+    }
+    const updated = [newP, ...payers]
+    setPayers(updated)
+    api.upsertPayer(newP).catch(() => {})
+    logHistory('Создание плательщика', `Добавлен плательщик ${newP.name}`, { clients, contractors, payers: updated, orders })
+  }
+
+  const handleUpdatePayer = (p: Payer) => {
+    const updatedPayers = payers.map(item => item.id === p.id ? p : item)
+    setPayers(updatedPayers)
+    api.upsertPayer(p).catch(() => {})
+    logHistory('Правка плательщика', `Изменены данные плательщика ${p.name}`, { clients, contractors, payers: updatedPayers, orders })
+  }
+
+  const handleDeletePayer = (id: string) => {
+    const updated = payers.filter(p => p.id !== id)
+    setPayers(updated)
+    api.deletePayer(id).catch(() => {})
+    logHistory('Удаление плательщика', `Удален плательщик #${id}`, { clients, contractors, payers: updated, orders })
+  }
+
+  // Export / Import
+  const handleExportJSON = () => {
+    const data = JSON.stringify({ orders, clients, contractors, payers, history }, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `crm-1c-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+  }
+
+  const handleImportJSON = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async event => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string)
+        if (parsed.orders) {
+          setOrders(parsed.orders)
+          for (const o of parsed.orders) await api.upsertOrder({ ...o, userId: currentUser.id }).catch(() => {})
+        }
+        if (parsed.clients) {
+          setClients(parsed.clients)
+          for (const c of parsed.clients) await api.upsertClient(c).catch(() => {})
+        }
+        if (parsed.contractors) {
+          setContractors(parsed.contractors)
+          for (const co of parsed.contractors) await api.upsertContractor(co).catch(() => {})
+        }
+        if (parsed.payers) {
+          setPayers(parsed.payers)
+          for (const p of parsed.payers) await api.upsertPayer(p).catch(() => {})
+        }
+        alert('Данные 1С успешно импортированы!')
+      } catch (err) {
+        alert('Ошибка при импорте JSON файла')
+      }
+    }
+    reader.readAsText(file)
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-96px)]">
-      {/* Filters */}
-      <div className="bg-white border border-[#d1d9e6] rounded-xl m-3 p-3 flex gap-2 shadow-sm">
-        <span className="text-xs text-slate-500 py-1">Всего {filtered.length} • компактная таблица • offline fallback</span>
-        <button className="ml-auto bg-blue-600 text-white rounded-full px-4 py-1.5 text-xs" onClick={()=>{
-          const id=Math.random().toString(36).slice(2,8)
-          const no={id, date:new Date().toISOString().slice(0,10), clientId:clients[0]?.id||'c1', productName:'', contractors:[], saleAmount:0, paymentReceiverId:payers[0]?.id||'p1', paymentNote:'', paymentReceived:false, status:'active', note:'', createdAt:new Date().toISOString()}
-          setOrders(o=>[no,...o])
-        }}>+ Заказ</button>
-      </div>
+    <div className="flex flex-col h-[calc(100vh-48px)] bg-[#e5e8ed]">
+      {/* 1C Top Navigation Bar */}
+      <NavigationTabs
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        ordersCount={orders.length}
+        clientsCount={clients.length}
+        contractorsCount={contractors.length}
+        payersCount={payers.length}
+        historyCount={history.length}
+        isAdmin={currentUser.role === 'admin'}
+        onExportJSON={handleExportJSON}
+        onImportJSON={handleImportJSON}
+      />
 
-      {/* Edit bar */}
-      <div className="bg-white border border-[#d1d9e6] rounded-xl mx-3 mb-2 p-2 shadow-sm border-l-4 border-l-blue-600">
-        <div className="text-[10px] text-slate-500 mb-1">{activeCell ? `${activeCell.field} • ${activeCell.oid.slice(0,4)}` : 'кликни ячейку'} — полный текст с переносами, в таблице ...</div>
-        <textarea className="w-full min-h-[36px] border border-slate-200 rounded-lg p-2 text-sm resize-y" value={editBar} onChange={e=>{
-          setEditBar(e.target.value)
-          if(!activeCell) return
-          const v=e.target.value
-          if(activeCell.field==='productName'){
-            setOrders(os=> os.map(o=> o.id===activeCell.oid? {...o, productName:v}:o))
-          } else if(activeCell.field==='saleAmount'){
-            const s=v.trim()
-            if(s.startsWith('=')){
-              setOrders(os=> os.map(o=> o.id===activeCell.oid? {...o, saleAmount:evalFormula(s), saleFormula:s}:o))
-            } else {
-              setOrders(os=> os.map(o=> o.id===activeCell.oid? {...o, saleAmount:Number(s)||0, saleFormula:''}:o))
-            }
-          }
-        }} placeholder="Выбери ячейку — здесь удобно править длинный текст" />
-      </div>
+      {/* Tab Contents */}
+      {activeTab === 'orders' && (
+        <OrdersTab
+          orders={orders}
+          clients={clients}
+          contractors={contractors}
+          payers={payers}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onAddOrder={handleAddOrder}
+          onCopyOrder={handleCopyOrder}
+          onDeleteOrder={handleDeleteOrder}
+          onUpdateOrder={handleUpdateOrder}
+        />
+      )}
 
-      {/* Sheet */}
-      <div className="flex-1 overflow-auto bg-white m-3 mt-2 border border-[#d1d9e6] rounded-xl shadow-sm">
-        <table className="sheet-grid">
-          <thead><tr>
-            <th className="sheet-header" style={{width:56}}>#</th>
-            <th className="sheet-header" style={{width:100}}>Дата</th>
-            <th className="sheet-header" style={{width:140}}>Клиент</th>
-            <th className="sheet-header" style={{width:220}}>Продукция</th>
-            <th className="sheet-header" style={{width:90}}>Затраты</th>
-            <th className="sheet-header" style={{width:110}}>Реализация</th>
-            <th className="sheet-header" style={{width:80}}>Прибыль</th>
-            <th class="sheet-header" style={{width:60}}>Рент%</th>
-            <th className="sheet-header" style={{width:150}}>Получатель</th>
-            <th className="sheet-header" style={{width:60}}>№ счета</th>
-            <th className="sheet-header" style={{width:40}}>Опл</th>
-            <th className="sheet-header" style={{width:80}}>Прим</th>
-            <th class="sheet-header" style={{width:56}}>Стат</th>
-            <th className="sheet-header" style={{width:70}}>Действ</th>
-          </tr></thead>
-          <tbody>
-            {filtered.map((order:any, idx:number)=>{
-              const t=calcTotals(order)
-              const isExp=!!expanded[order.id]
-              const cash=isCash(order.paymentReceiverId)
-              return (
-                <>
-                <tr key={order.id} className="hover:bg-[#f1f8ff] h-7">
-                  <td className="sheet-cell text-center cursor-pointer" style={{width:56}} onClick={()=>setExpanded(s=>({...s,[order.id]:!s[order.id]}))}>{idx+1} {isExp?'▼':'▶'}</td>
-                  <td className="sheet-cell"><div className="cell-truncate">{order.date}</div></td>
-                  <td className="sheet-cell"><div className="cell-truncate">{clients.find(c=>c.id===order.clientId)?.name||order.clientId}</div></td>
-                  <td className="sheet-cell cursor-pointer" onClick={()=>{ setActiveCell({row:idx, field:'productName', oid:order.id}); setEditBar(order.productName) }}>
-                    <div className="cell-truncate">{order.productName||'—'}</div>
-                  </td>
-                  <td className="sheet-cell text-right"><div className="cell-truncate">{t.costs.toLocaleString('ru-RU')}</div></td>
-                  <td className="sheet-cell cursor-pointer text-right font-medium" onClick={()=>{ setActiveCell({row:idx, field:'saleAmount', oid:order.id}); setEditBar(order.saleFormula||String(order.saleAmount)) }}>
-                    <div className="cell-truncate">{order.saleAmount}</div>
-                  </td>
-                  <td className="sheet-cell text-right" style={{color: t.profit>=0?'#16a34a':'#dc2626'}}><div className="cell-truncate">{t.profit.toLocaleString('ru-RU')}</div></td>
-                  <td className="sheet-cell text-right"><div className="cell-truncate">{t.rent.toFixed(1)}%</div></td>
-                  <td className="sheet-cell"><div className="cell-truncate">{payers.find(p=>p.id===order.paymentReceiverId)?.name||''}</div></td>
-                  <td className="sheet-cell"><div className="cell-truncate">{cash?'—':(order.paymentNote||'№…')}</div></td>
-                  <td className="sheet-cell text-center"><input type="checkbox" checked={!!order.paymentReceived} readOnly/></td>
-                  <td className="sheet-cell"><div className="cell-truncate">{order.note||''}</div></td>
-                  <td className="sheet-cell text-center">{order.status==='completed'?'✓':'○'}</td>
-                  <td className="sheet-cell"><button className="text-xs border rounded px-1" onClick={()=>{
-                    const copy={...order, id:Math.random().toString(36).slice(2,8), date:new Date().toISOString().slice(0,10)}
-                    setOrders(o=>[copy,...o])
-                  }}>⎘</button><button className="text-xs border rounded px-1 ml-1" onClick={()=> setOrders(o=>o.filter(x=>x.id!==order.id))}>🗑</button></td>
-                </tr>
-                {isExp && (
-                  <tr><td colSpan={14} style={{padding:0, border:'1px solid #e2e8f0'}}>
-                    <div style={{background:'#fffdf5', padding:6}}>
-                      <div style={{display:'flex', gap:8, marginBottom:6}}><span style={{fontSize:11, fontWeight:600}}>Подрядчики</span><button className="ml-auto text-xs border rounded px-2" onClick={()=>{
-                        const nr={id:Math.random().toString(36).slice(2,6), contractorId:'co1', description:'', costFormula:'', costValue:0, payerId:payers[0]?.id||'p1', paid:false, reconciled:false, note:''}
-                        setOrders(os=> os.map(o=> o.id===order.id? {...o, contractors:[...(o.contractors||[]), nr]}:o))
-                      }}>+ Добавить</button></div>
-                      <table className="sheet-grid" style={{width:'100%'}}>
-                        <thead><tr><th className="sheet-header">Описание</th><th className="sheet-header" style={{width:100}}>Формула</th><th className="sheet-header" style={{width:70}}>=</th></tr></thead>
-                        <tbody>
-                          {(order.contractors||[]).map((cr:any)=>(
-                            <tr key={cr.id}><td className="sheet-cell"><div className="cell-truncate">{cr.description||'—'}</div></td><td className="sheet-cell"><input defaultValue={cr.costFormula} className="w-full h-6 text-xs px-1 outline-none" placeholder="=6*3*450" onBlur={e=>{
-                              const val=e.currentTarget.value
-                              setOrders(os=> os.map(o=>{
-                                if(o.id!==order.id) return o
-                                return {...o, contractors: o.contractors.map((c:any)=> c.id===cr.id? {...c, costFormula:val, costValue:evalFormula(val)}:c)}
-                              }))
-                            }}/></td><td className="sheet-cell"><div className="cell-truncate">{cr.costValue}</div></td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </td></tr>
-                )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {activeTab === 'clients' && (
+        <ClientsTab
+          clients={clients}
+          onAddClient={handleAddClient}
+          onUpdateClient={handleUpdateClient}
+          onDeleteClient={handleDeleteClient}
+        />
+      )}
+
+      {activeTab === 'contractors' && (
+        <ContractorsTab
+          contractors={contractors}
+          onAddContractor={handleAddContractor}
+          onUpdateContractor={handleUpdateContractor}
+          onDeleteContractor={handleDeleteContractor}
+        />
+      )}
+
+      {activeTab === 'payers' && (
+        <PayersTab
+          payers={payers}
+          onAddPayer={handleAddPayer}
+          onUpdatePayer={handleUpdatePayer}
+          onDeletePayer={handleDeletePayer}
+        />
+      )}
+
+      {activeTab === 'reports' && (
+        <ReportsTab
+          orders={orders}
+          clients={clients}
+          contractors={contractors}
+          payers={payers}
+          selectedMonth={selectedMonth}
+          onUpdateOrder={handleUpdateOrder}
+          onLogHistory={logHistory}
+        />
+      )}
+
+      {activeTab === 'history' && (
+        <HistoryTab
+          history={history}
+          onClearHistory={() => {
+            setHistory([])
+            api.clearHistory().catch(() => {})
+          }}
+          onRestoreSnapshot={handleRestoreSnapshot}
+        />
+      )}
+
+      {activeTab === 'users' && currentUser.role === 'admin' && (
+        <UsersTab currentUser={currentUser} />
+      )}
     </div>
   )
 }
