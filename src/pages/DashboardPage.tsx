@@ -72,16 +72,28 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const loadAllData = async () => {
     try {
       const [ordData, clData, coData, pyData, histData] = await Promise.all([
-        api.fetchOrders(currentUser.role === 'admin' ? undefined : currentUser.id).catch(() => []),
-        api.fetchClients().catch(() => []),
-        api.fetchContractors().catch(() => []),
-        api.fetchPayers().catch(() => []),
+        api.fetchOrders(currentUser.id).catch(() => []),
+        api.fetchClients(currentUser.id).catch(() => []),
+        api.fetchContractors(currentUser.id).catch(() => []),
+        api.fetchPayers(currentUser.id).catch(() => []),
         api.fetchHistory().catch(() => [])
       ])
-      if (Array.isArray(ordData)) setOrders(ordData)
-      if (Array.isArray(clData)) setClients(clData)
-      if (Array.isArray(coData)) setContractors(coData)
-      if (Array.isArray(pyData)) setPayers(pyData)
+      
+      let localBackup: any = {}
+      try {
+        const saved = localStorage.getItem('crm_v10_reports_fixed')
+        if (saved) localBackup = JSON.parse(saved)
+      } catch {}
+
+      const finalOrders = (Array.isArray(ordData) && ordData.length > 0) ? ordData : (localBackup.orders || [])
+      const finalClients = (Array.isArray(clData) && clData.length > 0) ? clData : (localBackup.clients || [])
+      const finalContractors = (Array.isArray(coData) && coData.length > 0) ? coData : (localBackup.contractors || [])
+      const finalPayers = (Array.isArray(pyData) && pyData.length > 0) ? pyData : (localBackup.payers || [])
+
+      setOrders(finalOrders)
+      setClients(finalClients)
+      setContractors(finalContractors)
+      setPayers(finalPayers)
       if (Array.isArray(histData)) setHistory(histData)
     } catch (e) {
       console.error('Error loading data:', e)
