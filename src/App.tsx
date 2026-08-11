@@ -3,6 +3,7 @@ import { User as UserIcon, Sun, Moon, LogOut } from 'lucide-react'
 import LoginScreen from './components/LoginScreen'
 import DashboardPage from './pages/DashboardPage'
 import type { User } from './types'
+import { APP_VERSION, APP_BUILD } from './version'
 import './index.css'
 
 export default function App() {
@@ -39,7 +40,7 @@ export default function App() {
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />
 
   return (
-    <div className="h-screen flex flex-col bg-[#e5e8ed] font-sans text-[#22252a]">
+    <div className="h-screen flex flex-col bg-[#e5e8ed] font-sans text-[#22252a] relative">
       {/* Enterprise Header Bar */}
       <header className="h-12 bg-gradient-to-r from-[#ffcc00] via-[#ffd426] to-[#ffcc00] border-b border-[#d4a700] flex items-center px-4 gap-3 shadow-xs select-none">
         <div className="w-8 h-8 bg-red-600 text-white rounded-md flex items-center justify-center font-black text-sm shadow-xs border border-red-700">
@@ -49,8 +50,8 @@ export default function App() {
           <div className="font-extrabold text-sm text-[#1c1d1f] tracking-tight">
             A29 CRM — Управление рекламным агентством
           </div>
-          <div className="text-[10px] text-slate-700 font-medium">
-            Редакция 3.0 • A29 CRM (Multi-User)
+          <div className="text-[10px] text-slate-700 font-semibold">
+            Редакция {APP_VERSION} • A29 CRM
           </div>
         </div>
 
@@ -77,6 +78,11 @@ export default function App() {
       </header>
 
       <DashboardPage currentUser={currentUser} />
+
+      {/* Permanent Fixed Bottom-Right Version Indicator */}
+      <div className="fixed bottom-2 right-3 pointer-events-none z-50 text-[10px] font-mono font-bold text-slate-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 shadow-2xs select-none">
+        A29 CRM {APP_VERSION} ({APP_BUILD})
+      </div>
     </div>
   )
 }

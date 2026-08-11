@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { api } from '../api'
 import type { User } from '../types'
+import { APP_VERSION, APP_BUILD } from '../version'
 
 interface LoginScreenProps {
   onLogin: (user: User) => void
@@ -35,7 +36,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-[#e5e8ed] flex items-center justify-center z-50 font-sans">
+    <div className="fixed inset-0 bg-[#e5e8ed] flex items-center justify-center z-50 font-sans relative">
       <div className="bg-white rounded-xl shadow-2xl border border-[#b8bdc5] p-7 w-[380px]">
         {/* Header Banner */}
         <div className="flex items-center gap-3 mb-6 bg-gradient-to-r from-[#ffcc00] via-[#ffd426] to-[#ffcc00] p-3 rounded-lg border border-[#d4a700]">
@@ -43,7 +44,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             A29
           </div>
           <div>
-            <div className="font-extrabold text-sm text-[#1c1d1f]">A29 CRM 8.3</div>
+            <div className="font-extrabold text-sm text-[#1c1d1f]">A29 CRM {APP_VERSION}</div>
             <div className="text-[11px] text-slate-700 font-semibold">Управление CRM • Авторизация</div>
           </div>
         </div>
@@ -87,6 +88,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             {loading ? 'Авторизация...' : 'Войти в сеанс'}
           </button>
         </div>
+      </div>
+      
+      {/* Bottom Corner Version Badge */}
+      <div className="fixed bottom-2.5 right-3.5 pointer-events-none z-50 text-[10px] font-mono font-semibold text-slate-500 bg-white/80 backdrop-blur-xs px-2 py-0.5 rounded border border-slate-300 shadow-2xs select-none">
+        A29 CRM {APP_VERSION} ({APP_BUILD})
       </div>
     </div>
   )
