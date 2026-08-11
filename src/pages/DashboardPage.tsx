@@ -44,8 +44,10 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   })
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    return getSavedFilters().selectedMonth || new Date().toISOString().slice(0, 7)
+    // Always default to current month — never let a stale saved month hide current data
+    return new Date().toISOString().slice(0, 7)
   })
+
 
   const [dateFrom, setDateFrom] = useState<string>(() => {
     return getSavedFilters().dateFrom || ''
@@ -68,8 +70,14 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     } catch {}
   }, [statusFilter, searchQuery, selectedMonth, dateFrom, dateTo])
 
-  // Initial Data Load
+  // Initial Data Load — always trust Turso API, never fall back to stale localStorage
   const loadAllData = async () => {
+    // Clear stale offline cache keys from old versions
+    try {
+      localStorage.removeItem('crm_v10_reports_fixed')
+      localStorage.removeItem('crm_1c_backup')
+    } catch {}
+
     try {
       const [ordData, clData, coData, pyData, histData] = await Promise.all([
         api.fetchOrders(currentUser.id).catch(() => []),
@@ -78,22 +86,11 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
         api.fetchPayers(currentUser.id).catch(() => []),
         api.fetchHistory().catch(() => [])
       ])
-      
-      let localBackup: any = {}
-      try {
-        const saved = localStorage.getItem('crm_v10_reports_fixed')
-        if (saved) localBackup = JSON.parse(saved)
-      } catch {}
 
-      const finalOrders = (Array.isArray(ordData) && ordData.length > 0) ? ordData : (localBackup.orders || [])
-      const finalClients = (Array.isArray(clData) && clData.length > 0) ? clData : (localBackup.clients || [])
-      const finalContractors = (Array.isArray(coData) && coData.length > 0) ? coData : (localBackup.contractors || [])
-      const finalPayers = (Array.isArray(pyData) && pyData.length > 0) ? pyData : (localBackup.payers || [])
-
-      setOrders(finalOrders)
-      setClients(finalClients)
-      setContractors(finalContractors)
-      setPayers(finalPayers)
+      setOrders(Array.isArray(ordData) ? ordData : [])
+      setClients(Array.isArray(clData) ? clData : [])
+      setContractors(Array.isArray(coData) ? coData : [])
+      setPayers(Array.isArray(pyData) ? pyData : [])
       if (Array.isArray(histData)) setHistory(histData)
     } catch (e) {
       console.error('Error loading data:', e)
@@ -103,13 +100,6 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   useEffect(() => {
     loadAllData()
   }, [currentUser.id, currentUser.role])
-
-  // Sync state to localStorage fallback
-  useEffect(() => {
-    try {
-      localStorage.setItem('crm_v10_reports_fixed', JSON.stringify({ orders, clients, contractors, payers }))
-    } catch {}
-  }, [orders, clients, contractors, payers])
 
   const logHistory = (action: string, description: string, currentSnapshot?: any) => {
     const snap = currentSnapshot || { clients, contractors, payers, orders }
