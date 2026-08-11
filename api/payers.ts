@@ -9,16 +9,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
 
     if(req.method==='GET'){
       const r = await db.execute('SELECT * FROM payers ORDER BY created_at')
-      return res.json(r.rows.map(row=>({ id: row.id, name: row.name, type: (row as any).type || 'cashless', createdAt: row.created_at })))
+      return res.json(r.rows.map(row=>({ id: row.id, name: row.name, type: (row as any).type || 'cashless', createdAt: row.created_at, userId: (row as any).user_id || '' })))
     }
     if(req.method==='POST'){
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       try{ await db.execute('ALTER TABLE payers ADD COLUMN type TEXT DEFAULT "cashless"'); }catch{}
+      try{ await db.execute('ALTER TABLE payers ADD COLUMN user_id TEXT DEFAULT ""'); }catch{}
       await db.execute({
-        sql: `INSERT INTO payers (id,name,type,created_at) VALUES (?,?,?,?)
-              ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type`,
-        args: [b.id,b.name,b.type||'cashless',b.createdAt]
+        sql: `INSERT INTO payers (id,name,type,created_at,user_id) VALUES (?,?,?,?,?)
+              ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, user_id=excluded.user_id`,
+        args: [b.id,b.name,b.type||'cashless',b.createdAt,b.userId||'usr_alex']
       })
       return res.json({ok:true})
     }

@@ -18,7 +18,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         note: row.note,
         customFields: JSON.parse(row.custom_fields as string || '[]'),
         createdAt: row.created_at,
-        type: (row as any).type || undefined
+        type: (row as any).type || undefined,
+        userId: (row as any).user_id || ''
       }))
       return res.json(rows)
     }
@@ -26,9 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       await db.execute({
-        sql: `INSERT INTO clients (id,name,phone,contact_person,email,note,custom_fields,created_at) VALUES (?,?,?,?,?,?,?,?)
-              ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, contact_person=excluded.contact_person, email=excluded.email, note=excluded.note, custom_fields=excluded.custom_fields`,
-        args: [b.id, b.name, b.phone||'', b.contactPerson||'', b.email||'', b.note||'', JSON.stringify(b.customFields||[]), b.createdAt]
+        sql: `INSERT INTO clients (id,name,phone,contact_person,email,note,custom_fields,created_at,user_id) VALUES (?,?,?,?,?,?,?,?,?)
+              ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, contact_person=excluded.contact_person, email=excluded.email, note=excluded.note, custom_fields=excluded.custom_fields, user_id=excluded.user_id`,
+        args: [b.id, b.name, b.phone||'', b.contactPerson||'', b.email||'', b.note||'', JSON.stringify(b.customFields||[]), b.createdAt, b.userId||'usr_alex']
       })
       return res.json({ok:true})
     }

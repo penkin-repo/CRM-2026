@@ -9,12 +9,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
 
     if(req.method==='GET'){
       const r=await db.execute('SELECT * FROM contractors ORDER BY created_at')
-      return res.json(r.rows.map(row=>({ id:row.id, name:row.name, phone:row.phone, note:row.note, createdAt:row.created_at })))
+      return res.json(r.rows.map(row=>({ id:row.id, name:row.name, phone:row.phone, note:row.note, createdAt:row.created_at, userId:(row as any).user_id||'' })))
     }
     if(req.method==='POST'){
       let b=req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
-      await db.execute({sql:`INSERT INTO contractors (id,name,phone,note,created_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, note=excluded.note`, args:[b.id,b.name,b.phone||'',b.note||'',b.createdAt]})
+      await db.execute({sql:`INSERT INTO contractors (id,name,phone,note,created_at,user_id) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, note=excluded.note, user_id=excluded.user_id`, args:[b.id,b.name,b.phone||'',b.note||'',b.createdAt,b.userId||'usr_alex']})
       return res.json({ok:true})
     }
     if(req.method==='DELETE'){
