@@ -47,17 +47,17 @@ export const api = {
   },
 
   // clients
-  fetchClients: () => cachedGet<any[]>('/api/clients'),
+  fetchClients: (userId?: string) => cachedGet<any[]>(`/api/clients${userId ? `?userId=${userId}` : ''}`),
   upsertClient: async (c:any) => { clearApiCache(); return fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}).then(r=>r.json()) },
   deleteClient: async (id:string) => { clearApiCache(); return fetch(`/api/clients?id=${id}`,{method:'DELETE'}).then(r=>r.json()) },
 
   // contractors
-  fetchContractors: () => cachedGet<any[]>('/api/contractors'),
+  fetchContractors: (userId?: string) => cachedGet<any[]>(`/api/contractors${userId ? `?userId=${userId}` : ''}`),
   upsertContractor: async (c:any) => { clearApiCache(); return fetch('/api/contractors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}).then(r=>r.json()) },
   deleteContractor: async (id:string) => { clearApiCache(); return fetch(`/api/contractors?id=${id}`,{method:'DELETE'}).then(r=>r.json()) },
 
   // payers
-  fetchPayers: () => cachedGet<any[]>('/api/payers'),
+  fetchPayers: (userId?: string) => cachedGet<any[]>(`/api/payers${userId ? `?userId=${userId}` : ''}`),
   upsertPayer: async (p:any) => { clearApiCache(); return fetch('/api/payers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).then(r=>r.json()) },
   deletePayer: async (id:string) => { clearApiCache(); return fetch(`/api/payers?id=${id}`,{method:'DELETE'}).then(r=>r.json()) },
 

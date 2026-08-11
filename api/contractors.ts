@@ -8,7 +8,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     await ensureTables(db)
 
     if(req.method==='GET'){
-      const r=await db.execute('SELECT * FROM contractors ORDER BY created_at')
+      const userId = req.query.userId as string
+      let sql = 'SELECT * FROM contractors ORDER BY created_at'
+      let args: any[] = []
+      if(userId && userId !== 'all') {
+        sql = "SELECT * FROM contractors WHERE user_id = ? OR user_id = '' ORDER BY created_at"
+        args = [userId]
+      }
+      const r = await db.execute({ sql, args })
       return res.json(r.rows.map(row=>({ id:row.id, name:row.name, phone:row.phone, note:row.note, createdAt:row.created_at, userId:(row as any).user_id||'' })))
     }
     if(req.method==='POST'){
