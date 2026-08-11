@@ -8,8 +8,8 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin')
+  const [username, setUsername] = useState('alex')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -32,11 +32,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fillDemo = (u: string, p: string) => {
-    setUsername(u)
-    setPassword(p)
   }
 
   return (
@@ -91,34 +86,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           >
             {loading ? 'Авторизация...' : 'Войти в сеанс'}
           </button>
-        </div>
-
-        {/* Demo Accounts Presets */}
-        <div className="mt-6 pt-4 border-t border-slate-200">
-          <div className="text-[11px] font-bold text-[#555a64] mb-2">Демо-пользователи в базе данных:</div>
-          <div className="space-y-1">
-            <button
-              onClick={() => fillDemo('admin', 'admin')}
-              className="w-full text-left text-xs bg-slate-50 hover:bg-[#fff9d6] border border-slate-200 rounded px-2.5 py-1 flex justify-between items-center cursor-pointer transition"
-            >
-              <span className="font-bold text-[#1c1d1f]">admin</span>
-              <span className="text-[10px] text-slate-500 font-mono">пароль: admin (Администратор)</span>
-            </button>
-            <button
-              onClick={() => fillDemo('alex', 'alex123')}
-              className="w-full text-left text-xs bg-slate-50 hover:bg-[#fff9d6] border border-slate-200 rounded px-2.5 py-1 flex justify-between items-center cursor-pointer transition"
-            >
-              <span className="font-bold text-[#1c1d1f]">alex</span>
-              <span className="text-[10px] text-slate-500 font-mono">пароль: alex123 (Алексей)</span>
-            </button>
-            <button
-              onClick={() => fillDemo('manager', 'manager123')}
-              className="w-full text-left text-xs bg-slate-50 hover:bg-[#fff9d6] border border-slate-200 rounded px-2.5 py-1 flex justify-between items-center cursor-pointer transition"
-            >
-              <span className="font-bold text-[#1c1d1f]">manager</span>
-              <span className="text-[10px] text-slate-500 font-mono">пароль: manager123 (Мария)</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>
