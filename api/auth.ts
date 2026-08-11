@@ -12,13 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
   const uClean = String(username).trim()
   const uLower = uClean.toLowerCase()
   const passStr = String(password).trim()
-
-  const allowedPasswords = new Set([
-    'alex123',
-    'alex',
-    'admin',
-    (process.env.APP_PASSWORD || '').trim()
-  ].filter(Boolean))
+  const alexPass = (process.env.APP_PASSWORD || 'alex123').trim()
 
   try {
     const db = getDb()
@@ -43,8 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     console.error('Auth DB error:', e)
   }
 
-  // Fallback check for user alex
-  if(uLower === 'alex' && allowedPasswords.has(passStr)) {
+  // Single exact password check for alex
+  if(uLower === 'alex' && passStr === alexPass) {
     return res.status(200).json({
       ok: true,
       user: { id: 'usr_alex', username: 'alex', name: 'Алексей', role: 'admin' }
@@ -53,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
 
   return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' })
 }
+
 
 
 
