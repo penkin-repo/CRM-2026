@@ -14,30 +14,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : 'MISSING',
       NODE_ENV: process.env.NODE_ENV || 'unknown',
     },
-    db: { status: 'not_tested', error: null as any, rowCount: null as any }
+    db: { status: 'not_tested', error: null as any }
   }
 
   try {
     const url = process.env.TURSO_DATABASE_URL
     const token = process.env.TURSO_AUTH_TOKEN
+    if (!url || !token) { report.db.status = 'skipped'; report.db.error = 'Missing env vars'; return res.json(report) }
 
-    if (!url || !token) {
-      report.db.status = 'skipped'
-      report.db.error = 'Missing env vars'
-    } else {
-      const { createClient } = await import('@libsql/client/web')
-      const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
-      const db = createClient({ url: resolvedUrl, authToken: token })
+    const { createClient } = await import('@libsql/client/web')
+    const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
+    const db = createClient({ url: resolvedUrl, authToken: token })
 
-      // Test connection
-      const r = await db.execute('SELECT COUNT(*) as cnt FROM orders')
-      report.db.status = 'ok'
-      report.db.rowCount = Number(r.rows[0]?.cnt ?? 0)
+    // 1. Count orders total
+    const total = await db.execute('SELECT COUNT(*) as cnt FROM orders')
+    report.db.totalOrders = Number(total.rows[0]?.cnt ?? 0)
 
-      // Also check tables exist
-      const tables = await db.execute(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`)
-      report.db.tables = tables.rows.map((r: any) => r.name)
+    // 2. Orders by user_id
+    const byUser = await db.execute('SELECT user_id, COUNT(*) as cnt FROM orders GROUP BY user_id')
+    report.db.ordersByUser = byUser.rows.map((r: any) => ({ userId: r.user_id || '(empty)', count: Number(r.cnt) }))
+
+    // 3. Orders by month
+    const byMonth = await db.execute("SELECT substr(date,1,7) as month, COUNT(*) as cnt FROM orders GROUP BY substr(date,1,7) ORDER BY month DESC")
+    report.db.ordersByMonth = byMonth.rows.map((r: any) => ({ month: r.month, count: Number(r.cnt) }))
+
+    // 4. Test the actual usr_alex query (same as /api/orders?userId=usr_alex)
+    try {
+      const alexQ = await db.execute({
+        sql: "SELECT id, date, user_id, product_name FROM orders WHERE user_id = ? OR user_id = '' ORDER BY date DESC",
+        args: ['usr_alex']
+      })
+      report.db.alexOrders = alexQ.rows.map((r: any) => ({ id: r.id, date: r.date, userId: r.user_id, product: r.product_name }))
+    } catch (e: any) {
+      report.db.alexOrdersError = e?.message
     }
+
+    // 5. Test contractors JSON parse for each order (common source of 500)
+    try {
+      const allOrders = await db.execute('SELECT id, contractors FROM orders')
+      const parseErrors: string[] = []
+      for (const row of allOrders.rows) {
+        try { JSON.parse(row.contractors as string || '[]') } catch { parseErrors.push(String(row.id)) }
+      }
+      report.db.contractorsParseErrors = parseErrors.length > 0 ? parseErrors : 'none'
+    } catch (e: any) {
+      report.db.contractorsCheckError = e?.message
+    }
+
+    report.db.status = 'ok'
   } catch (err: any) {
     report.db.status = 'error'
     report.db.error = err?.message || String(err)
