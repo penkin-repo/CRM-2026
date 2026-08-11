@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDb } from './db'
 
+const DEMO_USERS: Record<string, { pass: string; user: any }> = {
+  admin: { pass: process.env.APP_PASSWORD || 'admin', user: { id: 'usr_admin', username: 'admin', name: 'Администратор', role: 'admin' } },
+  alex: { pass: 'alex123', user: { id: 'usr_alex', username: 'alex', name: 'Алексей', role: 'user' } },
+  manager: { pass: 'manager123', user: { id: 'usr_manager', username: 'manager', name: 'Мария', role: 'user' } }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse){
   if(req.method!=='POST') return res.status(405).end()
   const { username, password } = req.body || {}
@@ -8,6 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
   if(!username || !password) {
     return res.status(400).json({ ok: false, error: 'Логин и пароль обязательны' })
   }
+
+  const uLower = String(username).trim().toLowerCase()
 
   try {
     const db = getDb()
@@ -29,25 +37,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       })
     }
 
-    // Checking if matches default APP_PASSWORD for fallback admin
-    const envPass = process.env.APP_PASSWORD || 'admin'
-    if(username.toLowerCase() === 'admin' && password === envPass) {
-      return res.status(200).json({
-        ok: true,
-        user: { id: 'usr_admin', username: 'admin', name: 'Администратор', role: 'admin' }
-      })
+    // Checking demo fallback accounts if not found in DB
+    const foundDemo = DEMO_USERS[uLower]
+    if(foundDemo && foundDemo.pass === String(password)) {
+      return res.status(200).json({ ok: true, user: foundDemo.user })
     }
 
     return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' })
   } catch (e: any) {
     console.error('Auth error:', e)
-    const envPass = process.env.APP_PASSWORD || 'admin'
-    if(password === envPass) {
-      return res.status(200).json({
-        ok: true,
-        user: { id: 'usr_admin', username: username || 'admin', name: 'Администратор', role: 'admin' }
-      })
+    // Fallback if DB is unavailable / TURSO env missing on Vercel
+    const foundDemo = DEMO_USERS[uLower]
+    if(foundDemo && foundDemo.pass === String(password)) {
+      return res.status(200).json({ ok: true, user: foundDemo.user })
     }
-    return res.status(500).json({ ok: false, error: e.message })
+    return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' })
   }
 }
+
