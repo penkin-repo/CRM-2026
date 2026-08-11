@@ -73,5 +73,20 @@ export const api = {
 
   // salary
   fetchSalary: () => cachedGet<any[]>('/api/salary'),
-  upsertSalary: async (s:any) => { clearApiCache(); return fetch('/api/salary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)}).then(r=>r.json()) }
+  upsertSalary: async (s:any) => { clearApiCache(); return fetch('/api/salary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)}).then(r=>r.json()) },
+
+  // ai assistant
+  parseOrderWithAI: async (params: { text?: string; imageBase64?: string; apiKey?: string; clients: any[]; contractors: any[]; payers: any[] }) => {
+    const r = await fetch('/api/ai-parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    })
+    const json = await r.json()
+    if (!r.ok || !json.ok) {
+      throw new Error(json.error || 'Ошибка при разборе ИИ')
+    }
+    return json.data
+  }
 }
+

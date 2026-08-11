@@ -1,3 +1,4 @@
+import { Trash2, Undo2 } from 'lucide-react'
 import type { HistoryEntry } from '../types'
 
 interface HistoryTabProps {
@@ -12,17 +13,17 @@ export default function HistoryTab({ history, onClearHistory, onRestoreSnapshot 
       <div className="flex justify-between items-center mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
         <div>
           <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
-            Журнал регистрации и история снимков 1С ({history.length})
+            Журнал регистрации и история снимков A29 CRM ({history.length})
           </h2>
           <p className="text-[11px] text-[#555a64]">
             Вы можете восстановить состояние базы данных на момент любой исторической записи
           </p>
         </div>
         <button
-          className="text-xs bg-white border border-red-400 text-red-700 px-3 py-0.5 rounded font-bold hover:bg-red-50 cursor-pointer shadow-2xs"
+          className="text-xs bg-white border border-red-400 text-red-700 px-3 py-1 rounded font-bold hover:bg-red-50 cursor-pointer shadow-2xs flex items-center gap-1"
           onClick={onClearHistory}
         >
-          Очистить журнал
+          <Trash2 className="w-3.5 h-3.5" /> Очистить журнал
         </button>
       </div>
 
@@ -52,11 +53,11 @@ export default function HistoryTab({ history, onClearHistory, onRestoreSnapshot 
                   <td className="sheet-cell text-center p-0">
                     {h.snapshot ? (
                       <button
-                        className="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 rounded px-2 py-0.5 font-bold cursor-pointer transition shadow-2xs"
+                        className="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 rounded px-2 py-0.5 font-bold cursor-pointer transition shadow-2xs inline-flex items-center gap-1"
                         onClick={() => onRestoreSnapshot(h)}
                         title="Откатить состояние базы к этому снимку"
                       >
-                        ↩ Восстановить
+                        <Undo2 className="w-3 h-3" /> Восстановить
                       </button>
                     ) : (
                       <span className="text-slate-400 text-[10px]">—</span>

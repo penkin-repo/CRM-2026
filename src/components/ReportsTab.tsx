@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { Calendar, User, Building2, Wallet, Lock } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, SalaryRecord } from '../types'
 import { calcOrderTotals } from '../utils/formula'
 import { api } from '../api'
@@ -8,6 +9,7 @@ export type ReportSubTab = 'monthly' | 'byClient' | 'byContractor' | 'salary'
 interface PayerAdj {
   id: string
   payerId: string
+  sign?: '+' | '-'
   note: string
 }
 
@@ -17,12 +19,21 @@ interface ManagerWorkAdj {
   note: string
 }
 
+interface ContractorPayerAdj {
+  id: string
+  payerId: string
+  sign?: '+' | '-'
+  note: string
+}
+
 interface SalaryPreset {
   name: string
   salaryPercent: number
   payerAdjs: PayerAdj[]
   managerWorkAdjs: ManagerWorkAdj[]
+  contractorPayerAdjs?: ContractorPayerAdj[]
 }
+
 
 interface ReportsTabProps {
   orders: Order[]
@@ -56,6 +67,7 @@ export default function ReportsTab({
   const [salaryPercent, setSalaryPercent] = useState<number>(60)
   const [payerAdjs, setPayerAdjs] = useState<PayerAdj[]>([])
   const [managerWorkAdjs, setManagerWorkAdjs] = useState<ManagerWorkAdj[]>([])
+  const [contractorPayerAdjs, setContractorPayerAdjs] = useState<ContractorPayerAdj[]>([])
   
   // Salary DB Records & Presets state
   const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([])
@@ -103,7 +115,7 @@ export default function ReportsTab({
         sum += Number(o.saleAmount) || 0
       }
     })
-    return sum
+    return Math.round(sum)
   }
 
   // Helper: Auto-calculate monthly sum of work performed by a Contractor/Manager (strictly calculated)
@@ -116,7 +128,20 @@ export default function ReportsTab({
         }
       })
     })
-    return sum
+    return Math.round(sum)
+  }
+
+  // Helper: Auto-calculate monthly sum of payments to contractors from a Payer account
+  const getMonthlyContractorPayerSum = (payerId: string) => {
+    let sum = 0
+    monthOrders.forEach(o => {
+      (o.contractors || []).forEach(cr => {
+        if (cr.payerId === payerId) {
+          sum += Number(cr.costValue) || 0
+        }
+      })
+    })
+    return Math.round(sum)
   }
 
   // Orders filtered by period for other reports
@@ -184,18 +209,28 @@ export default function ReportsTab({
     return { totalCost, paidCost, reconciledCost, unpaidBalance }
   }, [contractorReportRows])
 
-  // Strictly Calculated Totals for Payer and Manager Adjustments
+  // Strictly Calculated Totals for Payer, Manager, and Contractor-Payer Adjustments
   const salaryPayerTotal = useMemo(() => {
-    return payerAdjs.reduce((acc, curr) => acc + getMonthlyPayerSum(curr.payerId), 0)
+    return payerAdjs.reduce((acc, curr) => {
+      const val = getMonthlyPayerSum(curr.payerId)
+      return curr.sign === '-' ? acc - val : acc + val
+    }, 0)
   }, [payerAdjs, monthOrders])
 
   const salaryManagerTotal = useMemo(() => {
     return managerWorkAdjs.reduce((acc, curr) => acc + getMonthlyContractorSum(curr.contractorId), 0)
   }, [managerWorkAdjs, monthOrders])
 
+  const salaryContractorPayerTotal = useMemo(() => {
+    return contractorPayerAdjs.reduce((acc, curr) => {
+      const val = getMonthlyContractorPayerSum(curr.payerId)
+      return curr.sign === '-' ? acc - val : acc + val
+    }, 0)
+  }, [contractorPayerAdjs, monthOrders])
+
   const finalCalculatedSalary = useMemo(() => {
-    return monthlyStats.baseSalary + salaryPayerTotal + salaryManagerTotal
-  }, [monthlyStats.baseSalary, salaryPayerTotal, salaryManagerTotal])
+    return Math.round(monthlyStats.baseSalary + salaryPayerTotal + salaryManagerTotal + salaryContractorPayerTotal)
+  }, [monthlyStats.baseSalary, salaryPayerTotal, salaryManagerTotal, salaryContractorPayerTotal])
 
   // Save / Load Presets
   const handleSavePreset = () => {
@@ -207,7 +242,8 @@ export default function ReportsTab({
       name: presetName.trim(),
       salaryPercent,
       payerAdjs,
-      managerWorkAdjs
+      managerWorkAdjs,
+      contractorPayerAdjs
     }
     setPresets(prev => [...prev.filter(p => p.name !== newPreset.name), newPreset])
     setPresetName('')
@@ -220,7 +256,9 @@ export default function ReportsTab({
     if (p.salaryPercent) setSalaryPercent(p.salaryPercent)
     setPayerAdjs(p.payerAdjs || [])
     setManagerWorkAdjs(p.managerWorkAdjs || [])
+    setContractorPayerAdjs(p.contractorPayerAdjs || [])
   }
+
 
   // Save Salary Record to DB
   const handleCloseSalaryPeriod = async () => {
@@ -255,28 +293,28 @@ export default function ReportsTab({
       {/* Sub-tabs Navigation */}
       <div className="flex flex-wrap items-center gap-1.5 mb-3 bg-[#f0f2f5] p-1 border border-[#b8bdc5] rounded shadow-2xs">
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border ${reportSubTab === 'monthly' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border flex items-center gap-1 ${reportSubTab === 'monthly' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
           onClick={() => setReportSubTab('monthly')}
         >
-          📅 Месячный отчёт
+          <Calendar className="w-3.5 h-3.5" /> Месячный отчёт
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border ${reportSubTab === 'byClient' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border flex items-center gap-1 ${reportSubTab === 'byClient' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
           onClick={() => setReportSubTab('byClient')}
         >
-          👤 По контрагенту
+          <User className="w-3.5 h-3.5" /> По контрагенту
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border ${reportSubTab === 'byContractor' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border flex items-center gap-1 ${reportSubTab === 'byContractor' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
           onClick={() => setReportSubTab('byContractor')}
         >
-          🏗️ По подрядчику
+          <Building2 className="w-3.5 h-3.5" /> По подрядчику
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border ${reportSubTab === 'salary' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer border flex items-center gap-1 ${reportSubTab === 'salary' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f]' : 'bg-white border-[#b8bdc5] text-slate-700'}`}
           onClick={() => setReportSubTab('salary')}
         >
-          💰 Зарплатный расчет 1С
+          <Wallet className="w-3.5 h-3.5" /> Зарплатный расчет
         </button>
 
         {/* Report Period Filter */}
@@ -517,7 +555,7 @@ export default function ReportsTab({
             <div className="flex justify-between items-center border-b border-[#b8bdc5] pb-2">
               <div className="flex items-center gap-3">
                 <h3 className="font-bold text-xs text-[#1c1d1f] uppercase tracking-wide">
-                  Зарплатный Расчёт 1С (Месяц: {repMonth})
+                  Зарплатный Расчёт (Месяц: {repMonth})
                 </h3>
                 <div className="flex items-center gap-1 bg-[#fff5a8] px-2 py-0.5 rounded border border-[#e5ba00]">
                   <span className="text-xs font-bold text-[#1c1d1f]">Процент от прибыли:</span>
@@ -578,47 +616,62 @@ export default function ReportsTab({
           </div>
 
           {/* Adjustments Steps with STRICTLY READ-ONLY Auto-Calculated Sums */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Left: Payer Adjustments */}
+          <div className="grid grid-cols-3 gap-3">
+            {/* Block 1: Payer Adjustments */}
             <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
               <div className="border-b pb-1.5 flex justify-between items-center">
                 <div>
-                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">1. Корректировки по счетам/плательщикам</h4>
-                  <p className="text-[10px] text-slate-500">Суммы рассчитываются строго из таблицы за месяц</p>
+                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">1. Поступления по счетам</h4>
+                  <p className="text-[10px] text-slate-500">Суммы счетов за месяц (+ / -)</p>
                 </div>
                 <button
                   className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
                   onClick={() => {
                     const firstPayerId = payers[0]?.id || ''
-                    setPayerAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), payerId: firstPayerId, note: '' }])
+                    setPayerAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), payerId: firstPayerId, sign: '+', note: '' }])
                   }}
                 >
-                  + Добавить счет
+                  + Счет
                 </button>
               </div>
 
               {payerAdjs.length === 0 ? (
-                <div className="text-slate-400 text-xs text-center py-3">Корректировки по счетам не добавлены</div>
+                <div className="text-slate-400 text-xs text-center py-3">Счета не добавлены</div>
               ) : (
                 payerAdjs.map((adj, idx) => {
                   const autoCalc = getMonthlyPayerSum(adj.payerId)
+                  const isMinus = adj.sign === '-'
                   return (
-                    <div key={adj.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded border border-slate-200 text-xs">
+                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, sign: item.sign === '-' ? '+' : '-' } : item))}
+                        className={`px-1.5 py-0.5 rounded font-black text-xs cursor-pointer border shrink-0 ${
+                          isMinus
+                            ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                        }`}
+                        title="Нажмите для смены знака: + (прибавить) / - (вычесть)"
+                      >
+                        {isMinus ? '-' : '+'}
+                      </button>
                       <select
                         value={adj.payerId}
                         onChange={e => {
                           const newPayerId = e.target.value
                           setPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, payerId: newPayerId } : item))
                         }}
-                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1"
+                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
                       >
                         {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
-                      <div className="bg-blue-100 border border-blue-300 text-blue-900 rounded px-2.5 py-1 font-black text-xs min-w-[100px] text-right">
-                        {autoCalc.toLocaleString('ru-RU')} ₽
+                      <div className={`border rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0 ${
+                        isMinus ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-900'
+                      }`}>
+                        {isMinus ? `- ${autoCalc.toLocaleString('ru-RU')} ₽` : `+ ${autoCalc.toLocaleString('ru-RU')} ₽`}
                       </div>
                       <button
-                        className="text-red-600 font-bold px-1 text-sm cursor-pointer"
+                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
                         onClick={() => setPayerAdjs(prev => prev.filter((_, i) => i !== idx))}
                       >
                         ✕
@@ -629,12 +682,12 @@ export default function ReportsTab({
               )}
             </div>
 
-            {/* Right: Manager Own Works */}
+            {/* Block 2: Manager Own Works */}
             <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
               <div className="border-b pb-1.5 flex justify-between items-center">
                 <div>
-                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">2. Работы менеджера / Подрядчиков</h4>
-                  <p className="text-[10px] text-slate-500">Стоимость работ рассчитывается строго из таблицы за месяц</p>
+                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">2. Работы менеджера</h4>
+                  <p className="text-[10px] text-slate-500">Работы из таблицы за месяц (+)</p>
                 </div>
                 <button
                   className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
@@ -643,33 +696,98 @@ export default function ReportsTab({
                     setManagerWorkAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), contractorId: firstCoId, note: '' }])
                   }}
                 >
-                  + Добавить работу
+                  + Работа
                 </button>
               </div>
 
               {managerWorkAdjs.length === 0 ? (
-                <div className="text-slate-400 text-xs text-center py-3">Работы менеджера не добавлены</div>
+                <div className="text-slate-400 text-xs text-center py-3">Работы не добавлены</div>
               ) : (
                 managerWorkAdjs.map((adj, idx) => {
                   const autoCalc = getMonthlyContractorSum(adj.contractorId)
                   return (
-                    <div key={adj.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded border border-slate-200 text-xs">
+                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
                       <select
                         value={adj.contractorId}
                         onChange={e => {
                           const newCoId = e.target.value
                           setManagerWorkAdjs(prev => prev.map((item, i) => i === idx ? { ...item, contractorId: newCoId } : item))
                         }}
-                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1"
+                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
                       >
                         {contractors.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
                       </select>
-                      <div className="bg-orange-100 border border-orange-300 text-orange-900 rounded px-2.5 py-1 font-black text-xs min-w-[100px] text-right">
-                        {autoCalc.toLocaleString('ru-RU')} ₽
+                      <div className="bg-orange-50 border border-orange-200 text-orange-900 rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0">
+                        + {autoCalc.toLocaleString('ru-RU')} ₽
                       </div>
                       <button
-                        className="text-red-600 font-bold px-1 text-sm cursor-pointer"
+                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
                         onClick={() => setManagerWorkAdjs(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Block 3: Contractor Payments via Payers */}
+            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
+              <div className="border-b pb-1.5 flex justify-between items-center">
+                <div>
+                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">3. Выплаты подрядчикам</h4>
+                  <p className="text-[10px] text-slate-500">Оплаты подрядчикам со счетов (+ / -)</p>
+                </div>
+                <button
+                  className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
+                  onClick={() => {
+                    const firstPayerId = payers[0]?.id || ''
+                    setContractorPayerAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), payerId: firstPayerId, sign: '+', note: '' }])
+                  }}
+                >
+                  + Счет
+                </button>
+              </div>
+
+              {contractorPayerAdjs.length === 0 ? (
+                <div className="text-slate-400 text-xs text-center py-3">Оплаты по счетам не добавлены</div>
+              ) : (
+                contractorPayerAdjs.map((adj, idx) => {
+                  const autoCalc = getMonthlyContractorPayerSum(adj.payerId)
+                  const isMinus = adj.sign === '-'
+                  return (
+                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setContractorPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, sign: item.sign === '-' ? '+' : '-' } : item))}
+                        className={`px-1.5 py-0.5 rounded font-black text-xs cursor-pointer border shrink-0 ${
+                          isMinus
+                            ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                        }`}
+                        title="Нажмите для смены знака: + (прибавить) / - (вычесть)"
+                      >
+                        {isMinus ? '-' : '+'}
+                      </button>
+                      <select
+                        value={adj.payerId}
+                        onChange={e => {
+                          const newPayerId = e.target.value
+                          setContractorPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, payerId: newPayerId } : item))
+                        }}
+                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
+                      >
+                        {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <div className={`border rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0 ${
+                        isMinus ? 'bg-red-50 border-red-200 text-red-700' : 'bg-purple-50 border-purple-200 text-purple-900'
+                      }`}>
+                        {isMinus ? `- ${autoCalc.toLocaleString('ru-RU')} ₽` : `+ ${autoCalc.toLocaleString('ru-RU')} ₽`}
+                      </div>
+                      <button
+                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
+                        onClick={() => setContractorPayerAdjs(prev => prev.filter((_, i) => i !== idx))}
                       >
                         ✕
                       </button>
@@ -685,18 +803,26 @@ export default function ReportsTab({
             <h4 className="font-extrabold text-xs text-[#1c1d1f] uppercase tracking-wide">
               ИТОГОВЫЙ РАСЧЕТ ЗАРПЛАТНОЙ ВЕДОМОСТИ ({repMonth})
             </h4>
-            <div className="grid grid-cols-4 gap-3 text-xs border-t border-[#e6ba00] pt-2">
+            <div className="grid grid-cols-5 gap-2 text-xs border-t border-[#e6ba00] pt-2">
               <div>
                 <span className="text-slate-600">Базовый Фонд ({salaryPercent}%):</span>
                 <div className="font-bold text-slate-800 text-sm">{monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽</div>
               </div>
               <div>
-                <span className="text-slate-600">Корректировки счетов:</span>
-                <div className="font-bold text-blue-800 text-sm">{salaryPayerTotal.toLocaleString('ru-RU')} ₽</div>
+                <span className="text-slate-600">Поступления счетов (+/-):</span>
+                <div className={`font-bold text-sm ${salaryPayerTotal < 0 ? 'text-red-700' : 'text-blue-800'}`}>
+                  {salaryPayerTotal.toLocaleString('ru-RU')} ₽
+                </div>
               </div>
               <div>
-                <span className="text-slate-600">Работы менеджера:</span>
+                <span className="text-slate-600">Работы менеджера (+):</span>
                 <div className="font-bold text-orange-800 text-sm">{salaryManagerTotal.toLocaleString('ru-RU')} ₽</div>
+              </div>
+              <div>
+                <span className="text-slate-600">Оплаты подрядчикам (+/-):</span>
+                <div className={`font-bold text-sm ${salaryContractorPayerTotal < 0 ? 'text-red-700' : 'text-purple-800'}`}>
+                  {salaryContractorPayerTotal.toLocaleString('ru-RU')} ₽
+                </div>
               </div>
               <div>
                 <span className="text-slate-600 font-bold uppercase">ИТОГО К ВЫПЛАТЕ:</span>
@@ -704,12 +830,13 @@ export default function ReportsTab({
               </div>
             </div>
 
+
             <div className="pt-2 flex justify-end">
               <button
-                className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1.5 text-xs font-extrabold cursor-pointer transition shadow-2xs active:scale-95"
+                className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1.5 text-xs font-extrabold cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
                 onClick={handleCloseSalaryPeriod}
               >
-                🔒 Провести и сохранить ведомость ЗП
+                <Lock className="w-3.5 h-3.5" /> Провести и сохранить ведомость ЗП
               </button>
             </div>
           </div>

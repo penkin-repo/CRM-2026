@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { User as UserIcon, Sun, Moon, LogOut } from 'lucide-react'
 import LoginScreen from './components/LoginScreen'
 import DashboardPage from './pages/DashboardPage'
 import type { User } from './types'
@@ -39,38 +40,38 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-[#e5e8ed] font-sans text-[#22252a]">
-      {/* 1C Enterprise Header Bar */}
+      {/* Enterprise Header Bar */}
       <header className="h-12 bg-gradient-to-r from-[#ffcc00] via-[#ffd426] to-[#ffcc00] border-b border-[#d4a700] flex items-center px-4 gap-3 shadow-xs select-none">
         <div className="w-8 h-8 bg-red-600 text-white rounded-md flex items-center justify-center font-black text-sm shadow-xs border border-red-700">
-          1С
+          A29
         </div>
         <div className="flex flex-col">
           <div className="font-extrabold text-sm text-[#1c1d1f] tracking-tight">
-            1С:CRM Таблица — Управление рекламным агентством
+            A29 CRM — Управление рекламным агентством
           </div>
           <div className="text-[10px] text-slate-700 font-medium">
-            Редакция 3.0 • Предприятие (Multi-User)
+            Редакция 3.0 • A29 CRM (Multi-User)
           </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <div className="text-xs font-semibold text-slate-800 bg-[#fff5a8] px-2.5 py-0.5 rounded border border-[#e5ba00] flex items-center gap-1.5">
-            <span>👤 Пользователь: <b>{currentUser.name}</b></span>
+            <span className="flex items-center gap-1"><UserIcon className="w-3.5 h-3.5 text-slate-700" /> Пользователь: <b>{currentUser.name}</b></span>
             <span className="text-[10px] bg-slate-800 text-white px-1.5 py-0.2 rounded uppercase font-bold">{currentUser.role}</span>
           </div>
 
           <button
-            className="bg-white/80 hover:bg-white text-slate-800 border border-[#d4a700] rounded px-2.5 py-1 text-xs font-semibold cursor-pointer shadow-2xs transition"
+            className="bg-white/80 hover:bg-white text-slate-800 border border-[#d4a700] rounded px-2.5 py-1 text-xs font-semibold cursor-pointer shadow-2xs transition flex items-center gap-1"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
-            {theme === 'dark' ? '☀ Светлая' : '🌙 Темная'}
+            {theme === 'dark' ? <><Sun className="w-3.5 h-3.5" /> Светлая</> : <><Moon className="w-3.5 h-3.5" /> Темная</>}
           </button>
           
           <button
-            className="bg-red-700 hover:bg-red-800 text-white rounded px-2.5 py-1 text-xs font-semibold cursor-pointer shadow-2xs transition border border-red-800"
+            className="bg-red-700 hover:bg-red-800 text-white rounded px-2.5 py-1 text-xs font-semibold cursor-pointer shadow-2xs transition border border-red-800 flex items-center gap-1"
             onClick={handleLogout}
           >
-            Завершить сеанс
+            <LogOut className="w-3.5 h-3.5" /> Завершить сеанс
           </button>
         </div>
       </header>

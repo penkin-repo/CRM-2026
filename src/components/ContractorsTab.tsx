@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import type { Contractor } from '../types'
 
 interface ContractorsTabProps {
@@ -38,17 +39,17 @@ export default function ContractorsTab({
           Справочник: Подрядчики и Менеджеры ({contractors.length})
         </h2>
         <button
-          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs"
+          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1"
           onClick={onAddContractor}
         >
-          + Создать элемент
+          <Plus className="w-3.5 h-3.5" /> Создать элемент
         </button>
       </div>
 
       {/* 1C Quick Property Edit Bar */}
       <div className="bg-white border border-[#b8bdc5] rounded mb-2.5 p-2 shadow-2xs border-l-4 border-l-[#ffcc00]">
         <div className="text-[10px] font-bold text-[#555a64] mb-0.5 uppercase tracking-wide">
-          {activeCell ? `Редактирование поля: ${String(activeCell.field)}` : 'Строка ввода 1С — выберите ячейку для редактирования длинного текста / комментариев'}
+          {activeCell ? `Редактирование поля: ${String(activeCell.field)}` : 'Строка ввода — выберите ячейку для редактирования длинного текста / комментариев'}
         </div>
         <textarea
           className="w-full min-h-[36px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] bg-[#fffdf0]"
@@ -114,8 +115,9 @@ export default function ContractorsTab({
                       <button
                         className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
                         onClick={() => onDeleteContractor(co.id)}
+                        title="Удалить подрядчика"
                       >
-                        🗑
+                        <Trash2 className="w-3.5 h-3.5 inline" />
                       </button>
                     </td>
                   </tr>

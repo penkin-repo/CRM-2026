@@ -1,6 +1,18 @@
 import { Fragment, useState } from 'react'
+import {
+  Plus,
+  Copy,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Circle,
+  X,
+  Sparkles
+} from 'lucide-react'
 import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
 import { calcOrderTotals, evalFormula } from '../utils/formula'
+import AiOrderModal from './AiOrderModal'
 
 interface OrdersTabProps {
   orders: Order[]
@@ -21,6 +33,7 @@ interface OrdersTabProps {
   onCopyOrder: (order: Order) => void
   onDeleteOrder: (id: string) => void
   onUpdateOrder: (order: Order, logDesc?: string) => void
+  onConfirmAiOrder?: (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => void
 }
 
 const EDITABLE_FIELDS = ['date', 'clientId', 'productName', 'saleAmount', 'paymentReceiverId', 'paymentNote', 'note']
@@ -43,11 +56,16 @@ export default function OrdersTab({
   onAddOrder,
   onCopyOrder,
   onDeleteOrder,
-  onUpdateOrder
+  onUpdateOrder,
+  onConfirmAiOrder
 }: OrdersTabProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [activeCell, setActiveCell] = useState<{ oid: string; field: string } | null>(null)
   const [editBar, setEditBar] = useState('')
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+
 
   const isCashPayer = (payerId: string) => {
     const p = payers.find(x => x.id === payerId)
@@ -145,7 +163,7 @@ export default function OrdersTab({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* 1C Command Panel / Filters */}
+      {/* Command Panel / Filters */}
       <div className="bg-[#f0f2f5] border-b border-[#b8bdc5] px-3 py-2 flex flex-wrap items-center gap-3 shadow-2xs">
         {/* Month Selector */}
         <div className="flex items-center gap-1">
@@ -223,17 +241,25 @@ export default function OrdersTab({
         <span className="text-xs text-[#555a64] font-medium ml-auto">Строк: {filteredOrders.length} (Навигация: ← → ↑ ↓)</span>
 
         <button
-          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] hover:to-[#e6b800] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1 text-xs font-bold cursor-pointer transition shadow-xs active:scale-95"
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded px-3.5 py-1 text-xs font-bold cursor-pointer transition shadow-xs active:scale-95 flex items-center gap-1.5"
+          onClick={() => setIsAiModalOpen(true)}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" /> ✨ ИИ Помощник
+        </button>
+
+        <button
+          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] hover:to-[#e6b800] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1 text-xs font-bold cursor-pointer transition shadow-xs active:scale-95 flex items-center gap-1"
           onClick={onAddOrder}
         >
-          + Создать заказ
+          <Plus className="w-3.5 h-3.5" /> Создать заказ
         </button>
       </div>
 
-      {/* 1C Quick Property Bar */}
+
+      {/* Quick Property Bar */}
       <div className="bg-white border-b border-[#b8bdc5] px-3 py-1.5 shadow-2xs border-l-4 border-l-[#ffcc00]">
         <div className="text-[10px] font-bold text-[#555a64] mb-0.5 uppercase tracking-wide">
-          {activeCell ? `Редактирование: ${activeCell.field} (заказ #${activeCell.oid.slice(0, 6)})` : 'Строка ввода 1С — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
+          {activeCell ? `Редактирование: ${activeCell.field} (заказ #${activeCell.oid.slice(0, 6)})` : 'Строка ввода — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
         </div>
         <textarea
           className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] bg-[#fffdf0]"
@@ -250,11 +276,13 @@ export default function OrdersTab({
               updated.productName = v
             } else if (activeCell.field === 'saleAmount') {
               const s = v.trim()
-              if (s.startsWith('=')) {
-                updated.saleAmount = evalFormula(s)
-                updated.saleFormula = s
+              const hasMath = s.startsWith('=') || /[+\-*/()]/.test(s)
+              const calcVal = evalFormula(s)
+              if (hasMath) {
+                updated.saleAmount = calcVal
+                updated.saleFormula = s.startsWith('=') ? s : '=' + s
               } else {
-                updated.saleAmount = Number(s) || 0
+                updated.saleAmount = calcVal
                 updated.saleFormula = ''
               }
             }
@@ -264,27 +292,31 @@ export default function OrdersTab({
         />
       </div>
 
-      {/* 1C Sheet Table */}
+      {/* Sheet Table */}
       <div className="flex-1 overflow-auto bg-white border-b border-[#b8bdc5]">
         <table className="sheet-grid w-full">
           <thead>
             <tr>
               <th className="sheet-header" style={{ width: 45 }}>№</th>
+              <th className="sheet-header" style={{ width: 45 }}>Стат</th>
               <th className="sheet-header" style={{ width: 95 }}>Дата</th>
               <th className="sheet-header" style={{ width: 160 }}>Контрагент (Клиент)</th>
               <th className="sheet-header" style={{ width: 220 }}>Номенклатура (Продукция)</th>
-              <th className="sheet-header" style={{ width: 90 }}>Затраты</th>
-              <th className="sheet-header" style={{ width: 110 }}>Сумма реал.</th>
-              <th className="sheet-header" style={{ width: 85 }}>Прибыль</th>
+              <th className="sheet-header" style={{ width: 70 }}>Затраты</th>
+              <th className="sheet-header" style={{ width: 70 }}>Сумма реал.</th>
+              <th className="sheet-header" style={{ width: 70 }}>Прибыль</th>
               <th className="sheet-header" style={{ width: 60 }}>Рент%</th>
               <th className="sheet-header" style={{ width: 150 }}>Счет получателя</th>
-              <th className="sheet-header" style={{ width: 75 }}>№ счета</th>
+              <th className="sheet-header" style={{ width: 35 }}>№ счета</th>
               <th className="sheet-header" style={{ width: 40 }}>Опл</th>
+
               <th className="sheet-header" style={{ width: 100 }}>Комментарий</th>
-              <th className="sheet-header" style={{ width: 45 }}>Стат</th>
-              <th className="sheet-header" style={{ width: 65 }}>Действ</th>
+              <th className="sheet-header" style={{ width: 130 }}>Действ</th>
             </tr>
           </thead>
+
+
+
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
@@ -297,20 +329,44 @@ export default function OrdersTab({
                 const t = calcOrderTotals(order)
                 const isExp = !!expanded[order.id]
                 const cash = isCashPayer(order.paymentReceiverId)
-
                 const isCellActive = (field: string) => activeCell?.oid === order.id && activeCell?.field === field
+                const isCompleted = order.status === 'completed'
+
+
+
+
+
 
                 return (
                   <Fragment key={order.id}>
-                    <tr className="sheet-row text-xs">
+                    <tr className={`sheet-row text-xs transition-all duration-150 ${
+                      isCompleted ? 'status-completed' : 'status-active'
+                    }`}>
+
+
+
                       {/* NON-editable cell # */}
                       <td
                         className="sheet-cell text-center cursor-pointer select-none font-bold text-[#44474e] bg-[#f4f6f8]"
                         onClick={() => setExpanded(s => ({ ...s, [order.id]: !s[order.id] }))}
                         title="Раскрыть табличную часть подрядчиков"
                       >
-                        {idx + 1} {isExp ? '▼' : '▶'}
+                        <span className="flex items-center justify-center gap-1">
+                          {idx + 1} {isExp ? <ChevronDown className="w-3.5 h-3.5 text-slate-600" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-600" />}
+                        </span>
                       </td>
+
+                      {/* NON-editable Status */}
+                      <td className="sheet-cell text-center p-0">
+                        <button
+                          className="w-full h-full flex items-center justify-center cursor-pointer"
+                          onClick={() => onUpdateOrder({ ...order, status: order.status === 'completed' ? 'active' : 'completed' }, `Смена статуса заказа #${order.id}`)}
+                          title="Нажмите для смены статуса"
+                        >
+                          {order.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" /> : <Circle className="w-4 h-4 text-slate-400 shrink-0" />}
+                        </button>
+                      </td>
+
 
                       {/* Editable Date */}
                       <td className={`sheet-cell p-0 ${isCellActive('date') ? 'sheet-cell-active' : ''}`}>
@@ -373,20 +429,24 @@ export default function OrdersTab({
                         <input
                           id={`cell-${order.id}-saleAmount`}
                           type="text"
-                          defaultValue={order.saleFormula || order.saleAmount}
+                          value={isCellActive('saleAmount') ? (editBar !== undefined && activeCell?.oid === order.id ? editBar : (order.saleFormula || (order.saleAmount ? String(order.saleAmount) : ''))) : (order.saleAmount ? `${order.saleAmount.toLocaleString('ru-RU')} ₽` : '0 ₽')}
                           onFocus={() => {
                             setActiveCell({ oid: order.id, field: 'saleAmount' })
-                            setEditBar(order.saleFormula || String(order.saleAmount))
+                            setEditBar(order.saleFormula || String(order.saleAmount || ''))
                           }}
                           onKeyDown={e => handleKeyDown(e, order.id, 'saleAmount')}
-                          onBlur={e => {
-                            const val = e.target.value.trim()
+                          onChange={e => {
+                            const val = e.target.value
+                            setEditBar(val)
+                            const s = val.trim()
+                            const hasMath = s.startsWith('=') || /[+\-*/()]/.test(s)
+                            const calcVal = evalFormula(s)
                             let updated = { ...order }
-                            if (val.startsWith('=')) {
-                              updated.saleAmount = evalFormula(val)
-                              updated.saleFormula = val
+                            if (hasMath) {
+                              updated.saleAmount = calcVal
+                              updated.saleFormula = s.startsWith('=') ? s : '=' + s
                             } else {
-                              updated.saleAmount = Number(val) || 0
+                              updated.saleAmount = calcVal
                               updated.saleFormula = ''
                             }
                             onUpdateOrder(updated, `Изменение суммы реализации заказа #${order.id}`)
@@ -475,37 +535,42 @@ export default function OrdersTab({
                         />
                       </td>
 
-                      {/* NON-editable Status */}
-                      <td className="sheet-cell text-center">
-                        <button
-                          className="text-xs cursor-pointer px-1 font-bold"
-                          onClick={() => onUpdateOrder({ ...order, status: order.status === 'completed' ? 'active' : 'completed' }, `Смена статуса заказа #${order.id}`)}
-                          title="Нажмите для смены статуса 1С"
-                        >
-                          {order.status === 'completed' ? <span className="text-green-700">✓</span> : <span className="text-slate-400">○</span>}
-                        </button>
+                      {/* NON-editable Actions */}
+
+                      <td className="sheet-cell text-center p-0">
+                        <div className="flex items-center justify-center gap-1.5 w-full h-full px-1">
+                          <button
+                            title={`Скопировать уникальный номер заказа (#${order.id})`}
+                            className="text-[10px] px-1 py-0.5 font-bold cursor-pointer transition text-[#1e40af] hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded font-mono shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(order.id)
+                              setCopiedId(order.id)
+                              setTimeout(() => setCopiedId(null), 1500)
+                            }}
+                          >
+                            {copiedId === order.id ? '✓ OK' : `#${order.id.slice(0, 5)}`}
+                          </button>
+                          <button
+                            title="Скопировать (дублировать) заказ"
+                            className="text-xs p-1 text-slate-700 hover:text-blue-700 font-bold cursor-pointer shrink-0"
+                            onClick={() => onCopyOrder(order)}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            title="Пометить на удаление"
+                            className="text-xs p-1 text-slate-700 hover:text-red-700 font-bold cursor-pointer shrink-0"
+                            onClick={() => onDeleteOrder(order.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
 
-                      {/* NON-editable Actions */}
-                      <td className="sheet-cell text-center p-0">
-                        <button
-                          title="Копировать документ"
-                          className="text-xs px-1 text-slate-700 hover:text-blue-700 font-bold cursor-pointer"
-                          onClick={() => onCopyOrder(order)}
-                        >
-                          ⎘
-                        </button>
-                        <button
-                          title="Пометить на удаление"
-                          className="text-xs px-1 text-slate-700 hover:text-red-700 font-bold cursor-pointer ml-1"
-                          onClick={() => onDeleteOrder(order.id)}
-                        >
-                          🗑
-                        </button>
-                      </td>
+
                     </tr>
 
-                    {/* 1C Contractor Tabular Section */}
+                    {/* Contractor Tabular Section */}
                     {isExp && (
                       <tr>
                         <td colSpan={14} className="p-0 border-b border-[#b8bdc5]">
@@ -515,7 +580,7 @@ export default function OrdersTab({
                                 Табличная часть: Подрядчики и Менеджеры
                               </span>
                               <button
-                                className="text-[11px] bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] border border-[#d9a800] text-[#1c1d1f] px-2.5 py-0.5 rounded font-bold cursor-pointer shadow-2xs hover:from-[#ffcc00]"
+                                className="text-[11px] bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] border border-[#d9a800] text-[#1c1d1f] px-2.5 py-0.5 rounded font-bold cursor-pointer shadow-2xs hover:from-[#ffcc00] inline-flex items-center gap-1"
                                 onClick={() => {
                                   const nr: OrderContractorRow = {
                                     id: Math.random().toString(36).slice(2, 6),
@@ -531,7 +596,7 @@ export default function OrdersTab({
                                   onUpdateOrder({ ...order, contractors: [...(order.contractors || []), nr] }, `Добавление подрядчика в заказ #${order.id}`)
                                 }}
                               >
-                                + Добавить строку
+                                <Plus className="w-3 h-3" /> Добавить строку
                               </button>
                             </div>
 
@@ -588,9 +653,10 @@ export default function OrdersTab({
                                       </td>
                                       <td className="sheet-cell p-0">
                                         <input
-                                          defaultValue={cr.costFormula || ''}
-                                          onBlur={e => {
-                                            const val = e.currentTarget.value
+                                          type="text"
+                                          value={cr.costFormula || ''}
+                                          onChange={e => {
+                                            const val = e.target.value
                                             const calcVal = evalFormula(val)
                                             const updatedCRs = order.contractors.map((c, i) => i === cIdx ? { ...c, costFormula: val, costValue: calcVal } : c)
                                             onUpdateOrder({ ...order, contractors: updatedCRs }, `Изменение формулы подрядчика в заказе #${order.id}`)
@@ -658,8 +724,9 @@ export default function OrdersTab({
                                             const updatedCRs = order.contractors.filter((_, i) => i !== cIdx)
                                             onUpdateOrder({ ...order, contractors: updatedCRs }, `Удаление строки подрядчика из заказа #${order.id}`)
                                           }}
+                                          title="Удалить строку"
                                         >
-                                          ✕
+                                          <X className="w-3.5 h-3.5 inline" />
                                         </button>
                                       </td>
                                     </tr>
@@ -678,6 +745,21 @@ export default function OrdersTab({
           </tbody>
         </table>
       </div>
+
+
+      <AiOrderModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        clients={clients}
+        contractors={contractors}
+        payers={payers}
+        onConfirmOrder={(newOrder, newClients, newContractors) => {
+          if (onConfirmAiOrder) {
+            onConfirmAiOrder(newOrder, newClients, newContractors)
+          }
+        }}
+      />
     </div>
   )
 }
+

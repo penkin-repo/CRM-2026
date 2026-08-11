@@ -9,7 +9,7 @@
   }
 }
 
-/* 1C Enterprise Grid Styling */
+/* A29 CRM Grid Styling */
 .sheet-grid {
   border-collapse: collapse;
   width: max-content;
@@ -41,7 +41,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: white;
+  background-color: #ffffff;
   line-height: 26px;
   max-width: 1px;
   position: relative;
@@ -57,10 +57,21 @@
   display: block;
 }
 
-/* 1C Row Hover & Row Selection */
-tr.sheet-row:hover td.sheet-cell {
-  background-color: #fff9d6;
+/* Status Row Styling (STYLEGUIDE A29) */
+tr.status-active td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
+  background-color: #fffef2;
 }
+
+tr.status-completed td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
+  background-color: #f1f5f9;
+  opacity: 0.65;
+}
+
+/* A29 CRM Row Hover & Row Selection */
+tr.sheet-row:hover td.sheet-cell {
+  background-color: #fff9d6 !important;
+}
+
 
 /* ACTIVE EDITABLE CELL HIGHLIGHT (Never overridden by hover) */
 td.sheet-cell-active,
@@ -73,7 +84,7 @@ td.sheet-cell:focus-within {
   font-weight: 600 !important;
 }
 
-/* Custom 1C Scrollbar */
+/* Custom A29 CRM Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -91,4 +102,117 @@ td.sheet-cell:focus-within {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a0a6b2;
+}
+
+/* DARK MODE STYLES */
+html.dark body {
+  background-color: #121316;
+  color: #e2e8f0;
+}
+
+html.dark header {
+  background: linear-gradient(90deg, #1c1e24 0%, #282b36 50%, #1c1e24 100%) !important;
+  border-bottom-color: #333642 !important;
+}
+
+html.dark .bg-\[\#e5e8ed\] {
+  background-color: #121316 !important;
+}
+
+html.dark .bg-\[\#f0f2f5\] {
+  background-color: #1c1e24 !important;
+  border-color: #333642 !important;
+}
+
+html.dark .bg-\[\#d9dce1\] {
+  background-color: #262933 !important;
+  border-color: #383c4a !important;
+}
+
+html.dark .bg-\[\#e6e9ed\] {
+  background-color: #282b36 !important;
+  color: #94a3b8 !important;
+}
+
+html.dark .bg-white {
+  background-color: #1c1e24 !important;
+  color: #e2e8f0 !important;
+  border-color: #333642 !important;
+}
+
+html.dark .sheet-header {
+  border-color: #333642;
+  background: linear-gradient(180deg, #252831 0%, #1c1e24 100%);
+  color: #cbd5e1;
+}
+
+html.dark .sheet-cell {
+  border-color: #2e323e;
+  background-color: #1c1e24;
+  color: #e2e8f0;
+}
+
+html.dark .sheet-cell input,
+html.dark .sheet-cell select {
+  color: #f1f5f9 !important;
+}
+
+html.dark .sheet-cell input::placeholder {
+  color: #64748b !important;
+}
+
+html.dark tr.sheet-row:hover td.sheet-cell,
+html.dark tr.hover\:bg-\[\#fff9d6\]:hover {
+  background-color: #282e3d !important;
+}
+
+html.dark td.sheet-cell-active,
+html.dark td.sheet-cell:focus-within {
+  outline: 2.5px solid #f59e0b !important;
+  background-color: #332611 !important;
+  color: #fff !important;
+}
+
+html.dark td.sheet-cell-active input,
+html.dark td.sheet-cell:focus-within input {
+  color: #fef08a !important;
+}
+
+html.dark textarea,
+html.dark .bg-\[\#fffdf0\] {
+  background-color: #252831 !important;
+  color: #f1f5f9 !important;
+  border-color: #383c4a !important;
+}
+
+html.dark .text-\[\#1c1d1f\] {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-\[\#555a64\] {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-\[\#333740\] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .bg-\[\#f4f6f8\],
+html.dark .bg-\[\#f9fafb\] {
+  background-color: #242731 !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark .bg-\[\#fcfbe3\] {
+  background-color: #22251a !important;
+  border-color: #423b18 !important;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #181a20;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #383c4a;
+  border-color: #181a20;
 }

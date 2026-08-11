@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { UserPlus, Trash2 } from 'lucide-react'
 import type { User } from '../types'
 import { api } from '../api'
 
@@ -58,17 +59,17 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
       <div className="flex justify-between items-center mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
         <div>
           <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
-            Справочник: Пользователи и Права доступа 1С ({users.length})
+            Справочник: Пользователи и Права доступа ({users.length})
           </h2>
           <p className="text-[11px] text-[#555a64]">
             Управление учётными записями, логинами и паролями для входа в систему
           </p>
         </div>
         <button
-          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs"
+          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1"
           onClick={handleAddUser}
         >
-          + Создать пользователя
+          <UserPlus className="w-3.5 h-3.5" /> Создать пользователя
         </button>
       </div>
 
@@ -135,7 +136,7 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
                       onClick={() => handleDeleteUser(u.id)}
                       title="Удалить пользователя"
                     >
-                      🗑
+                      <Trash2 className="w-3.5 h-3.5 inline" />
                     </button>
                   </td>
                 </tr>

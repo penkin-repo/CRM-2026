@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { api } from '../api'
 import type { User } from '../types'
 
@@ -41,13 +42,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <div className="fixed inset-0 bg-[#e5e8ed] flex items-center justify-center z-50 font-sans">
       <div className="bg-white rounded-xl shadow-2xl border border-[#b8bdc5] p-7 w-[380px]">
-        {/* 1C Header Banner */}
+        {/* Header Banner */}
         <div className="flex items-center gap-3 mb-6 bg-gradient-to-r from-[#ffcc00] via-[#ffd426] to-[#ffcc00] p-3 rounded-lg border border-[#d4a700]">
           <div className="w-10 h-10 bg-red-600 text-white rounded flex items-center justify-center font-black text-lg shadow-xs border border-red-800 select-none">
-            1С
+            A29
           </div>
           <div>
-            <div className="font-extrabold text-sm text-[#1c1d1f]">1С:Предприятие 8.3</div>
+            <div className="font-extrabold text-sm text-[#1c1d1f]">A29 CRM 8.3</div>
             <div className="text-[11px] text-slate-700 font-semibold">Управление CRM • Авторизация</div>
           </div>
         </div>
@@ -78,8 +79,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </div>
 
           {error && (
-            <div className="text-red-700 bg-red-50 border border-red-200 rounded p-2 text-xs font-bold">
-              ⚠️ {error}
+            <div className="text-red-700 bg-red-50 border border-red-200 rounded p-2 text-xs font-bold flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" /> {error}
             </div>
           )}
 
@@ -88,7 +89,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             onClick={handleLogin}
             disabled={loading}
           >
-            {loading ? 'Проверка 1С...' : 'Войти в сеанс'}
+            {loading ? 'Авторизация...' : 'Войти в сеанс'}
           </button>
         </div>
 

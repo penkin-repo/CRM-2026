@@ -27,50 +27,38 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([])
 
   // Filter States with localStorage persistence
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>(() => {
+  const getSavedFilters = () => {
     try {
-      const saved = localStorage.getItem('crm_1c_filters')
-      if (saved) return JSON.parse(saved).statusFilter || 'all'
+      const saved = localStorage.getItem('crm_a29_filters') || localStorage.getItem('crm_1c_filters')
+      if (saved) return JSON.parse(saved)
     } catch {}
-    return 'all'
+    return {}
+  }
+
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>(() => {
+    return getSavedFilters().statusFilter || 'all'
   })
 
   const [searchQuery, setSearchQuery] = useState(() => {
-    try {
-      const saved = localStorage.getItem('crm_1c_filters')
-      if (saved) return JSON.parse(saved).searchQuery || ''
-    } catch {}
-    return ''
+    return getSavedFilters().searchQuery || ''
   })
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('crm_1c_filters')
-      if (saved && JSON.parse(saved).selectedMonth) return JSON.parse(saved).selectedMonth
-    } catch {}
-    return new Date().toISOString().slice(0, 7)
+    return getSavedFilters().selectedMonth || new Date().toISOString().slice(0, 7)
   })
 
   const [dateFrom, setDateFrom] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('crm_1c_filters')
-      if (saved) return JSON.parse(saved).dateFrom || ''
-    } catch {}
-    return ''
+    return getSavedFilters().dateFrom || ''
   })
 
   const [dateTo, setDateTo] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('crm_1c_filters')
-      if (saved) return JSON.parse(saved).dateTo || ''
-    } catch {}
-    return ''
+    return getSavedFilters().dateTo || ''
   })
 
   // Save filters to localStorage whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem('crm_1c_filters', JSON.stringify({
+      localStorage.setItem('crm_a29_filters', JSON.stringify({
         statusFilter,
         searchQuery,
         selectedMonth,
@@ -214,6 +202,31 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
   }
 
+  const handleConfirmAiOrder = (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => {
+    let updatedClients = [...clients]
+    for (const c of newClientsToCreate) {
+      if (!updatedClients.some(x => x.id === c.id)) {
+        updatedClients.push(c)
+        api.upsertClient(c).catch(() => {})
+      }
+    }
+    if (newClientsToCreate.length > 0) setClients(updatedClients)
+
+    let updatedContractors = [...contractors]
+    for (const co of newContractorsToCreate) {
+      if (!updatedContractors.some(x => x.id === co.id)) {
+        updatedContractors.push(co)
+        api.upsertContractor(co).catch(() => {})
+      }
+    }
+    if (newContractorsToCreate.length > 0) setContractors(updatedContractors)
+
+    const updatedOrders = [newOrder, ...orders]
+    setOrders(updatedOrders)
+    api.upsertOrder({ ...newOrder, userId: newOrder.userId || currentUser.id }).catch(() => {})
+    logHistory('Создание заказа ИИ', `Заказ #${newOrder.id} создан ИИ помощником`, { clients: updatedClients, contractors: updatedContractors, payers, orders: updatedOrders })
+  }
+
   // --- Clients Handlers ---
   const handleAddClient = () => {
     const newC: Client = {
@@ -313,7 +326,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `crm-1c-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `crm-a29-backup-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
   }
 
@@ -340,7 +353,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           setPayers(parsed.payers)
           for (const p of parsed.payers) await api.upsertPayer(p).catch(() => {})
         }
-        alert('Данные 1С успешно импортированы!')
+        alert('Данные A29 CRM успешно импортированы!')
       } catch (err) {
         alert('Ошибка при импорте JSON файла')
       }
@@ -350,7 +363,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)] bg-[#e5e8ed]">
-      {/* 1C Top Navigation Bar */}
+      {/* Top Navigation Bar */}
       <NavigationTabs
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -385,7 +398,9 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           onCopyOrder={handleCopyOrder}
           onDeleteOrder={handleDeleteOrder}
           onUpdateOrder={handleUpdateOrder}
+          onConfirmAiOrder={handleConfirmAiOrder}
         />
+
       )}
 
       {activeTab === 'clients' && (
