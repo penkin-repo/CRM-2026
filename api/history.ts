@@ -1,14 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, ensureTables } from './db'
+import { getDb } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   res.setHeader('Content-Type', 'application/json')
   try {
     const db = await getDb()
-    if (!db) {
-      return res.status(200).json({ ok: false, error: 'Database client returned null.' })
-    }
-    await ensureTables(db)
+    if (!db) return res.status(200).json([])
 
     if (req.method === 'GET') {
       const r = await db.execute('SELECT * FROM history ORDER BY timestamp DESC LIMIT 50')
@@ -48,11 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   } catch (err: any) {
     console.error('History API error:', err)
-    return res.status(200).json({
-      ok: false,
-      debugError: true,
-      message: err?.message || String(err),
-      stack: err?.stack || ''
-    })
+    if (req.method === 'GET') return res.status(200).json([])
+    return res.status(500).json({ ok: false, error: err.message })
   }
 }

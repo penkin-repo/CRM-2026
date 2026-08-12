@@ -1,14 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, ensureTables } from './db'
+import { getDb } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   res.setHeader('Content-Type', 'application/json')
   try {
     const db = await getDb()
     if (!db) {
-      return res.status(200).json({ ok: false, error: 'Database client returned null. Check TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables in Vercel.' })
+      return res.status(200).json([])
     }
-    await ensureTables(db)
 
     if (req.method === 'GET') {
       const userId = req.query.userId as string
@@ -67,11 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   } catch (err: any) {
     console.error('Orders API error:', err)
-    return res.status(200).json({
-      ok: false,
-      debugError: true,
-      message: err?.message || String(err),
-      stack: err?.stack || ''
-    })
+    if (req.method === 'GET') return res.status(200).json([])
+    return res.status(500).json({ ok: false, error: err.message })
   }
 }

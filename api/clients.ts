@@ -1,17 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, ensureTables } from './db'
+import { getDb } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
+  res.setHeader('Content-Type', 'application/json')
   try {
     const db = await getDb()
-    if (!db) return res.json([])
-    await ensureTables(db)
+    if (!db) return res.status(200).json([])
 
-    if(req.method==='GET'){
+    if (req.method === 'GET') {
       const userId = req.query.userId as string
       let sql = 'SELECT * FROM clients ORDER BY created_at DESC'
       let args: any[] = []
-      if(userId && userId !== 'all') {
+      if (userId && userId !== 'all') {
         sql = "SELECT * FROM clients WHERE user_id = ? OR user_id = '' ORDER BY created_at DESC"
         args = [userId]
       }
@@ -34,9 +34,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
           userId: (row as any).user_id || ''
         }
       })
-      return res.json(rows)
+      return res.status(200).json(rows)
     }
-    if(req.method==='POST'){
+
+    if (req.method === 'POST') {
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       const customFieldsStr = typeof b.customFields === 'string' ? b.customFields : JSON.stringify(b.customFields || [])
@@ -45,17 +46,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
               ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, contact_person=excluded.contact_person, email=excluded.email, note=excluded.note, custom_fields=excluded.custom_fields, user_id=excluded.user_id`,
         args: [b.id, b.name||'', b.phone||'', b.contactPerson||'', b.email||'', b.note||'', customFieldsStr, b.createdAt||new Date().toISOString(), b.userId||'usr_alex']
       })
-      return res.json({ok:true})
+      return res.status(200).json({ ok: true })
     }
-    if(req.method==='DELETE'){
+
+    if (req.method === 'DELETE') {
       const id = req.query.id as string
-      await db.execute({sql:'DELETE FROM clients WHERE id=?', args:[id]})
-      return res.json({ok:true})
+      await db.execute({ sql: 'DELETE FROM clients WHERE id=?', args: [id] })
+      return res.status(200).json({ ok: true })
     }
-    res.status(405).end()
+
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   } catch (err: any) {
     console.error('Clients API error:', err)
-    if (req.method === 'GET') return res.json([])
+    if (req.method === 'GET') return res.status(200).json([])
     return res.status(500).json({ ok: false, error: err.message })
   }
 }
