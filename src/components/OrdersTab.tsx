@@ -67,25 +67,41 @@ export default function OrdersTab({
   onConfirmAiOrder
 }: OrdersTabProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [activeCell, setActiveCell] = useState<{ oid: string; field: string } | null>(null)
+  const [activeCell, setActiveCell] = useState<{
+    oid: string
+    field: string
+    contractorRowId?: string
+  } | null>(null)
   const [editBar, setEditBar] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
 
-  // Sync Top Edit-bar with selected cell content
+  // Sync Top Edit-bar with selected cell content (both main orders and contractor sub-tables)
   useEffect(() => {
     if (!activeCell) return
     const order = orders.find(o => o.id === activeCell.oid)
     if (!order) return
 
-    if (activeCell.field === 'productName') {
-      setEditBar(order.productName || '')
-    } else if (activeCell.field === 'saleAmount') {
-      setEditBar(order.saleFormula || String(order.saleAmount || ''))
-    } else if (activeCell.field === 'note') {
-      setEditBar(order.note || '')
-    } else if (activeCell.field === 'paymentNote') {
-      setEditBar(order.paymentNote || '')
+    if (activeCell.contractorRowId) {
+      const cr = (order.contractors || []).find(r => r.id === activeCell.contractorRowId)
+      if (!cr) return
+      if (activeCell.field === 'crDescription') {
+        setEditBar(cr.description || '')
+      } else if (activeCell.field === 'crCostFormula') {
+        setEditBar(cr.costFormula || (cr.costValue ? String(cr.costValue) : ''))
+      } else if (activeCell.field === 'crNote') {
+        setEditBar(cr.note || '')
+      }
+    } else {
+      if (activeCell.field === 'productName') {
+        setEditBar(order.productName || '')
+      } else if (activeCell.field === 'saleAmount') {
+        setEditBar(order.saleFormula || String(order.saleAmount || ''))
+      } else if (activeCell.field === 'note') {
+        setEditBar(order.note || '')
+      } else if (activeCell.field === 'paymentNote') {
+        setEditBar(order.paymentNote || '')
+      }
     }
   }, [activeCell, orders])
 
@@ -361,41 +377,59 @@ export default function OrdersTab({
         </button>
       </div>
 
-      {/* Quick Property Bar */}
+      {/* Quick Property Bar — Always syncs with active cell text (orders or contractor sub-tables) */}
       <div className="bg-white border-b border-[#b8bdc5] px-3 py-1.5 shadow-2xs border-l-4 border-l-[#ffcc00]">
         <div className="text-[10px] font-bold text-[#555a64] mb-0.5 uppercase tracking-wide">
-          {activeCell ? `Редактирование: ${activeCell.field} (заказ #${activeCell.oid.slice(0, 6)})` : 'Строка ввода — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
+          {activeCell
+            ? `Редактирование: ${activeCell.field} (заказ #${activeCell.oid.slice(0, 6)})`
+            : 'Строка ввода — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
         </div>
         <textarea
           className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] bg-[#fffdf0]"
           value={editBar}
           onChange={e => {
-            setEditBar(e.target.value)
-            if (!activeCell) return
             const v = e.target.value
+            setEditBar(v)
+            if (!activeCell) return
             const targetOrder = orders.find(o => o.id === activeCell.oid)
             if (!targetOrder) return
 
-            let updated = { ...targetOrder }
-            if (activeCell.field === 'productName') {
-              updated.productName = v
-            } else if (activeCell.field === 'saleAmount') {
-              const s = v.trim()
-              const hasMath = s.startsWith('=') || /[+\-*/()]/.test(s)
-              const calcVal = evalFormula(s)
-              if (hasMath) {
-                updated.saleAmount = calcVal
-                updated.saleFormula = s.startsWith('=') ? s : '=' + s
-              } else {
-                updated.saleAmount = calcVal
-                updated.saleFormula = ''
+            if (activeCell.contractorRowId) {
+              const updatedContractors = (targetOrder.contractors || []).map(cr => {
+                if (cr.id !== activeCell.contractorRowId) return cr
+                if (activeCell.field === 'crDescription') {
+                  return { ...cr, description: v }
+                } else if (activeCell.field === 'crCostFormula') {
+                  const calcVal = evalFormula(v)
+                  return { ...cr, costFormula: v, costValue: calcVal }
+                } else if (activeCell.field === 'crNote') {
+                  return { ...cr, note: v }
+                }
+                return cr
+              })
+              onUpdateOrder({ ...targetOrder, contractors: updatedContractors }, `Изменение подрядчика в заказе #${targetOrder.id}`)
+            } else {
+              let updated = { ...targetOrder }
+              if (activeCell.field === 'productName') {
+                updated.productName = v
+              } else if (activeCell.field === 'saleAmount') {
+                const s = v.trim()
+                const hasMath = s.startsWith('=') || /[+\-*/()]/.test(s)
+                const calcVal = evalFormula(s)
+                if (hasMath) {
+                  updated.saleAmount = calcVal
+                  updated.saleFormula = s.startsWith('=') ? s : '=' + s
+                } else {
+                  updated.saleAmount = calcVal
+                  updated.saleFormula = ''
+                }
+              } else if (activeCell.field === 'note') {
+                updated.note = v
+              } else if (activeCell.field === 'paymentNote') {
+                updated.paymentNote = v
               }
-            } else if (activeCell.field === 'note') {
-              updated.note = v
-            } else if (activeCell.field === 'paymentNote') {
-              updated.paymentNote = v
+              onUpdateOrder(updated, `Правка поля ${activeCell.field} в заказе #${targetOrder.id}`)
             }
-            onUpdateOrder(updated, `Правка поля ${activeCell.field} в заказе #${targetOrder.id}`)
           }}
           placeholder="Ввод текста или формулы (начинается с =)..."
         />
@@ -435,7 +469,7 @@ export default function OrdersTab({
                 const t = calcOrderTotals(order)
                 const isExp = isRowExpanded(order)
                 const cash = isCashPayer(order.paymentReceiverId)
-                const isCellActive = (field: string) => activeCell?.oid === order.id && activeCell?.field === field
+                const isCellActive = (field: string) => activeCell?.oid === order.id && activeCell?.field === field && !activeCell.contractorRowId
                 const isCompleted = order.status === 'completed'
 
                 return (
@@ -700,17 +734,17 @@ export default function OrdersTab({
                                 onClick={() => {
                                   const newRow: OrderContractorRow = {
                                     id: 'cr_' + Math.random().toString(36).slice(2, 7),
-                                    contractorId: contractors[0]?.id || '',
+                                    contractorId: '', // Default to -- Выберите --
                                     description: '',
                                     costFormula: '',
                                     costValue: 0,
-                                    payerId: payers[0]?.id || '',
+                                    payerId: '', // Default to -- Выберите --
                                     paid: false,
                                     reconciled: false,
                                     note: ''
                                   }
                                   const updatedContractors = [...(order.contractors || []), newRow]
-                                  onUpdateOrder({ ...order, contractors: updatedContractors }, `Добавлен подрядчик в заказ #${order.id}`)
+                                  onUpdateOrder({ ...order, contractors: updatedContractors }, `Добавлен новый подрядчик в заказ #${order.id}`)
                                 }}
                               >
                                 <Plus className="w-3 h-3" /> + Добавить подрядчика
@@ -735,119 +769,160 @@ export default function OrdersTab({
                                 {(order.contractors || []).length === 0 ? (
                                   <tr>
                                     <td colSpan={9} className="text-center py-3 text-slate-400 text-xs">
-                                      Подрядчики не добавлены
+                                      Подрядчики не добавлены. Нажмите "+ Добавить подрядчика".
                                     </td>
                                   </tr>
                                 ) : (
-                                  (order.contractors || []).map(cr => (
-                                    <tr key={cr.id} className="hover:bg-[#fff9d6] text-xs">
-                                      <td className="sheet-cell p-0">
-                                        <select
-                                          value={cr.contractorId || ''}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: e.target.value } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
-                                          }}
-                                          className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold"
-                                        >
-                                          <option value="">-- Выберите --</option>
-                                          {contractors.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                      <td className="sheet-cell p-0">
-                                        <input
-                                          type="text"
-                                          value={cr.description || ''}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: e.target.value } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
-                                          }}
-                                          className="w-full h-full px-1 text-xs outline-none bg-transparent"
-                                          placeholder="Описание работы..."
-                                        />
-                                      </td>
-                                      <td className="sheet-cell p-0">
-                                        <input
-                                          type="text"
-                                          value={cr.costFormula || (cr.costValue ? String(cr.costValue) : '')}
-                                          onChange={e => {
-                                            const val = e.target.value
-                                            const calcVal = evalFormula(val)
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
-                                          }}
-                                          className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono text-[#b91c1c]"
-                                          placeholder="=6*1200"
-                                        />
-                                      </td>
-                                      <td className="sheet-cell text-right font-bold text-slate-800 bg-[#f9fafb]">
-                                        <div className="cell-truncate">{(cr.costValue || 0).toLocaleString('ru-RU')} ₽</div>
-                                      </td>
-                                      <td className="sheet-cell p-0">
-                                        <select
-                                          value={cr.payerId || ''}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
-                                          }}
-                                          className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer"
-                                        >
-                                          <option value="">-- Выберите --</option>
-                                          {payers.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                      <td className="sheet-cell text-center p-0">
-                                        <input
-                                          type="checkbox"
-                                          checked={!!cr.paid}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, paid: e.target.checked } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена оплата подрядчика`)
-                                          }}
-                                          className="cursor-pointer accent-[#ffcc00]"
-                                        />
-                                      </td>
-                                      <td className="sheet-cell text-center p-0">
-                                        <input
-                                          type="checkbox"
-                                          checked={!!cr.reconciled}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, reconciled: e.target.checked } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена сверка подрядчика`)
-                                          }}
-                                          className="cursor-pointer accent-[#ffcc00]"
-                                        />
-                                      </td>
-                                      <td className="sheet-cell p-0">
-                                        <input
-                                          type="text"
-                                          value={cr.note || ''}
-                                          onChange={e => {
-                                            const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, note: e.target.value } : r)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
-                                          }}
-                                          className="w-full h-full px-1 text-xs outline-none bg-transparent"
-                                          placeholder="Примечание..."
-                                        />
-                                      </td>
-                                      <td className="sheet-cell text-center">
-                                        <button
-                                          className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
-                                          onClick={() => {
-                                            const updatedRows = (order.contractors || []).filter(r => r.id !== cr.id)
-                                            onUpdateOrder({ ...order, contractors: updatedRows }, `Удален подрядчик из заказа #${order.id}`)
-                                          }}
-                                          title="Удалить подрядчика"
-                                        >
-                                          ✕
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))
+                                  (order.contractors || []).map(cr => {
+                                    const isCrActive = (field: string) =>
+                                      activeCell?.oid === order.id &&
+                                      activeCell?.field === field &&
+                                      activeCell?.contractorRowId === cr.id
+
+                                    return (
+                                      <tr key={cr.id} className="hover:bg-[#fff9d6] text-xs">
+                                        {/* Contractor Select */}
+                                        <td className="sheet-cell p-0">
+                                          <select
+                                            value={cr.contractorId || ''}
+                                            onChange={e => {
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: e.target.value } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
+                                            }}
+                                            className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold"
+                                          >
+                                            <option value="">-- Выберите --</option>
+                                            {contractors.map(c => (
+                                              <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                          </select>
+                                        </td>
+
+                                        {/* Work Description Input (Syncs with Top Edit-Bar) */}
+                                        <td className={`sheet-cell p-0 ${isCrActive('crDescription') ? 'sheet-cell-active' : ''}`}>
+                                          <input
+                                            type="text"
+                                            value={cr.description || ''}
+                                            onFocus={() => {
+                                              setActiveCell({ oid: order.id, field: 'crDescription', contractorRowId: cr.id })
+                                              setEditBar(cr.description || '')
+                                            }}
+                                            onChange={e => {
+                                              const val = e.target.value
+                                              setEditBar(val)
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: val } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
+                                            }}
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                                            placeholder="Описание работы..."
+                                          />
+                                        </td>
+
+                                        {/* Cost Formula Input (Syncs with Top Edit-Bar, Empty Placeholder) */}
+                                        <td className={`sheet-cell p-0 ${isCrActive('crCostFormula') ? 'sheet-cell-active' : ''}`}>
+                                          <input
+                                            type="text"
+                                            value={cr.costFormula || (cr.costValue ? String(cr.costValue) : '')}
+                                            onFocus={() => {
+                                              setActiveCell({ oid: order.id, field: 'crCostFormula', contractorRowId: cr.id })
+                                              setEditBar(cr.costFormula || (cr.costValue ? String(cr.costValue) : ''))
+                                            }}
+                                            onChange={e => {
+                                              const val = e.target.value
+                                              setEditBar(val)
+                                              const calcVal = evalFormula(val)
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
+                                            }}
+                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono text-[#b91c1c]"
+                                            placeholder=""
+                                          />
+                                        </td>
+
+                                        {/* Computed Cost Result */}
+                                        <td className="sheet-cell text-right font-bold text-slate-800 bg-[#f9fafb]">
+                                          <div className="cell-truncate">{(cr.costValue || 0).toLocaleString('ru-RU')} ₽</div>
+                                        </td>
+
+                                        {/* Payer Select */}
+                                        <td className="sheet-cell p-0">
+                                          <select
+                                            value={cr.payerId || ''}
+                                            onChange={e => {
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
+                                            }}
+                                            className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer"
+                                          >
+                                            <option value="">-- Выберите --</option>
+                                            {payers.map(p => (
+                                              <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                          </select>
+                                        </td>
+
+                                        {/* Paid Checkbox */}
+                                        <td className="sheet-cell text-center p-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!cr.paid}
+                                            onChange={e => {
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, paid: e.target.checked } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена оплата подрядчика`)
+                                            }}
+                                            className="cursor-pointer accent-[#ffcc00]"
+                                          />
+                                        </td>
+
+                                        {/* Reconciled Checkbox */}
+                                        <td className="sheet-cell text-center p-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!cr.reconciled}
+                                            onChange={e => {
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, reconciled: e.target.checked } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена сверка подрядчика`)
+                                            }}
+                                            className="cursor-pointer accent-[#ffcc00]"
+                                          />
+                                        </td>
+
+                                        {/* Contractor Note Input (Syncs with Top Edit-Bar) */}
+                                        <td className={`sheet-cell p-0 ${isCrActive('crNote') ? 'sheet-cell-active' : ''}`}>
+                                          <input
+                                            type="text"
+                                            value={cr.note || ''}
+                                            onFocus={() => {
+                                              setActiveCell({ oid: order.id, field: 'crNote', contractorRowId: cr.id })
+                                              setEditBar(cr.note || '')
+                                            }}
+                                            onChange={e => {
+                                              const val = e.target.value
+                                              setEditBar(val)
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, note: val } : r)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
+                                            }}
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                                            placeholder="Примечание..."
+                                          />
+                                        </td>
+
+                                        {/* Delete Action */}
+                                        <td className="sheet-cell text-center">
+                                          <button
+                                            className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
+                                            onClick={() => {
+                                              const updatedRows = (order.contractors || []).filter(r => r.id !== cr.id)
+                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Удален подрядчик из заказа #${order.id}`)
+                                            }}
+                                            title="Удалить подрядчика"
+                                          >
+                                            ✕
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })
                                 )}
                               </tbody>
                             </table>
