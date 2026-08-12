@@ -3,7 +3,7 @@ import { getDb, ensureTables } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   try {
-    const db = getDb()
+    const db = await getDb()
     if (!db) return res.json([])
     await ensureTables(db)
 
