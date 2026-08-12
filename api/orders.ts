@@ -31,27 +31,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         args = [userId]
       }
       const r = await db.execute({ sql, args })
-      const rows = r.rows.map(row => {
+      const rows = r.rows.map((row: any) => {
         let parsedContractors = []
         try {
-          parsedContractors = typeof row.contractors === 'string' ? JSON.parse(row.contractors || '[]') : (row.contractors || [])
+          if (typeof row.contractors === 'string') {
+            parsedContractors = JSON.parse(row.contractors || '[]')
+          } else if (Array.isArray(row.contractors)) {
+            parsedContractors = row.contractors
+          }
         } catch {}
 
         return {
-          id: row.id,
-          date: row.date,
-          clientId: row.client_id,
-          productName: row.product_name,
+          id: String(row.id ?? ''),
+          date: String(row.date ?? ''),
+          clientId: String(row.client_id ?? ''),
+          productName: String(row.product_name ?? ''),
           contractors: Array.isArray(parsedContractors) ? parsedContractors : [],
-          saleAmount: row.sale_amount,
-          saleFormula: (row as any).sale_formula || '',
-          paymentReceiverId: row.payment_receiver_id,
-          paymentNote: row.payment_note,
-          paymentReceived: !!row.payment_received,
-          status: row.status,
-          note: row.note,
-          createdAt: row.created_at,
-          userId: (row as any).user_id || ''
+          saleAmount: Number(row.sale_amount ?? 0),
+          saleFormula: String(row.sale_formula ?? ''),
+          paymentReceiverId: String(row.payment_receiver_id ?? ''),
+          paymentNote: String(row.payment_note ?? ''),
+          paymentReceived: Boolean(Number(row.payment_received ?? 0)),
+          status: String(row.status ?? 'active'),
+          note: String(row.note ?? ''),
+          createdAt: String(row.created_at ?? ''),
+          userId: String(row.user_id ?? '')
         }
       })
       return res.status(200).json(rows)
@@ -65,14 +69,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         sql: `INSERT INTO orders (id,date,client_id,product_name,contractors,sale_amount,sale_formula,payment_receiver_id,payment_note,payment_received,status,note,created_at,user_id)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
               ON CONFLICT(id) DO UPDATE SET date=excluded.date, client_id=excluded.client_id, product_name=excluded.product_name, contractors=excluded.contractors, sale_amount=excluded.sale_amount, sale_formula=excluded.sale_formula, payment_receiver_id=excluded.payment_receiver_id, payment_note=excluded.payment_note, payment_received=excluded.payment_received, status=excluded.status, note=excluded.note, user_id=excluded.user_id`,
-        args: [b.id, b.date||'', b.clientId||'', b.productName||'', contractorsStr, b.saleAmount||0, b.saleFormula||'', b.paymentReceiverId||'', b.paymentNote||'', b.paymentReceived?1:0, b.status||'active', b.note||'', b.createdAt||new Date().toISOString(), b.userId||'']
+        args: [String(b.id), String(b.date||''), String(b.clientId||''), String(b.productName||''), contractorsStr, Number(b.saleAmount||0), String(b.saleFormula||''), String(b.paymentReceiverId||''), String(b.paymentNote||''), b.paymentReceived ? 1 : 0, String(b.status||'active'), String(b.note||''), String(b.createdAt||new Date().toISOString()), String(b.userId||'')]
       })
       return res.status(200).json({ ok: true })
     }
 
     if (req.method === 'DELETE') {
       const id = req.query.id as string
-      await db.execute({ sql: 'DELETE FROM orders WHERE id=?', args: [id] })
+      await db.execute({ sql: 'DELETE FROM orders WHERE id=?', args: [String(id)] })
       return res.status(200).json({ ok: true })
     }
 
@@ -80,6 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
   } catch (err: any) {
     console.error('Orders API error:', err)
     if (req.method === 'GET') return res.status(200).json([])
-    return res.status(500).json({ ok: false, error: err.message })
+    return res.status(500).json({ ok: false, error: err?.message || String(err) })
   }
 }
