@@ -1,5 +1,3 @@
-import { createClient } from '@libsql/client/http'
-
 let tablesInitialized = false
 
 export async function getDb() {
@@ -7,6 +5,7 @@ export async function getDb() {
   const token = process.env.TURSO_AUTH_TOKEN
   if (!url || !token) return null
   try {
+    const { createClient } = await import('@libsql/client/web')
     const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
     return createClient({ url: resolvedUrl, authToken: token })
   } catch (e) {
