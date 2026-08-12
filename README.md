@@ -1,220 +1,143 @@
+# A29 CRM — Система управления рекламным агентством (v8.7.0)
 
 > 📖 **Гайд по стилям оформления A29 CRM для ИИ / Разработчиков**:  
 > Полное руководство по цветовой палитре, верстке и компонентам A29 CRM находится в файле [`STYLEGUIDE_A29.md`](file:///c:/DEV/2026/CRM%202026/STYLEGUIDE_A29.md). Используйте его для сохранения стилистического единообразия UI.
 
-## Для человека — быстрый старт
+---
 
+## 🚀 Основной контекст проекта (v8.7.0)
 
-Этот репозиторий содержит **два варианта**:
+CRM-система **A29 CRM** — это высокоскоростной веб-инструмент для учета заказов, клиентов, подрядчиков, расчетов с плательщиками и финансовой аналитики рекламного агентства.
 
-1. **Прототип `/home/user/index.html` (в корне воркспейса Arena)** — полностью офлайн, один HTML, без бэка, работает в песочнице iframe (без `allow-same-origin`, без сети). Идеально для демо и быстрого редактирования в стиле Google Таблицы.
-2. **Fullstack `crm-fullstack/` (эта папка)** — React 19 + TypeScript + Tailwind 4 + Vite 7 + `vite-plugin-singlefile` + Vercel Functions + Turso (SQLite в облаке). Готов для деплоя на Vercel.
+Приложение сочетает удобство таблицы уровня Google Sheets / Excel с надежностью облачной мультипользовательской СУБД.
 
-### Что умеет таблица (v10 — текущая)
-
-- **Заказы**: главный лист, компактные строки 28px с `...`, верхняя edit-bar показывает полный текст с переносами. Клик — выбор, даблклик — inline правка.
-  - Колонки: `# ▼`, Дата (человекочитаемо `21 авг 2024`), Клиент (select), Продукция (длинное с ...), Затраты (сумма подрядчиков), Реализация (поддерживает `=6*1200` / `=12000*1.2`), Прибыль, Рент%, Получатель (select с типом), № счета (60px, активно только если плательщик не наличные), Опл чекбокс, Примечание 80px, Статус у действий, Действия `⎘` скопировать / `🗑` удалить.
-  - Раскрывающийся блок подрядчиков по клику на `#` — вся ячейка кликабельна, внутри своя sheet-таблица: Подрядчик (select), Описание, Формула `=6*3*450`, =Значение (live без потери фокуса), Плательщик, Опл, Сверка, Примечание.
-- **Клиенты / Подрядчики / Плательщики**: добавление пустой строкой без модалок, правка кликом/даблкликом как в таблице, верхняя edit-bar работает для всех вкладок.
-- **Плательщики — тип**: `безнал / наличные / карта` в отдельной колонке select. Если `наличные` — № счета серый `—` и очищается, нельзя вписать.
-- **Отчеты**: 4 под-вкладки в едином стиле `report-page`:
-  - 📅 Месячный — заказы за месяц, статы реал/прибыль/зарплата
-  - 👤 По клиенту — фильтр клиента
-  - 🏗️ По подрядчику — редактируемые плательщик/опл/сверка прямо из отчета
-  - 💰 Зарплатный №1 — заказы за месяц + работы выбранного менеджера/подрядчика (суммируется к зарплате) + наличка (отчет по cash). Формула внизу.
-- **История**: до 50 записей, snapshot всей БД в JSON, `↩ Отменить` с badge, восстановление.
-- **Экспорт/Импорт JSON**, локально fallback в localStorage если API недоступен.
-- **Топ интерфейс переработан**: фон `#e8edf3`, шапка белая с тенью, активный таб синий `#1a73e8` белый текст (не постельный), фильтры — белая карточка с `border-radius:12px` и тенью, edit-bar — карточка с синей левой полосой 4px, таблица — отдельная карточка с `margin` и тенью, чтобы не сливалось. Сама таблица не трогалась.
-- **Формулы**: `=6*3*450` и т.п. через `evalFormula` без `mathjs` в прототипе, с `mathjs` в fullstack версии. Для реализации тоже.
-- **Дата**: человекочитаемая `21 авг 2024`.
-
-### Запуск fullstack локально
-
-```bash
-# 1. Turso
-curl -sSfL https://get.tur.so/install.sh | bash
-turso auth login
-turso db create crm-db
-turso db show crm-db --url          # libsql://...
-turso db tokens create crm-db       # eyJ...
-
-# 2. Проект
-cd crm-fullstack
-cp .env.example .env   # заполни URL, TOKEN, APP_PASSWORD=admin
-pnpm install
-pnpm migrate           # создаст таблицы
-pnpm dev               # Vite :5173 + API :3000 параллельно
-```
-
-Открой http://localhost:5173, пароль `admin`.
-
-### Деплой на Vercel
-
-```bash
-vercel link
-vercel env add TURSO_DATABASE_URL
-vercel env add TURSO_AUTH_TOKEN
-vercel env add APP_PASSWORD
-vercel --prod
-```
-
-`vercel.json` уже с `rewrites /api/*`. `vite-plugin-singlefile` соберет фронт в один HTML, API останутся serverless функциями в `api/`.
-
-### Структура проекта (fullstack)
-
-```
-crm-fullstack/
-├─ api/                 # Vercel Functions (@vercel/node)
-│  ├─ db.ts             # getDb() -> libsql client
-│  ├─ auth.ts           # POST /api/auth
-│  ├─ clients.ts        # GET/POST/DELETE
-│  ├─ contractors.ts
-│  ├─ payers.ts         # + type cashless/cash/card, миграция колонки
-│  ├─ orders.ts         # contractors JSON, sale_formula
-│  ├─ history.ts
-│  └─ salary.ts
-├─ scripts/
-│  ├─ migrate.ts        # создание таблиц, ALTER для type
-│  └─ dev.ts            # параллельно vite + api
-├─ server/dev.ts        # локальный http сервер для api/
-├─ src/
-│  ├─ main.tsx
-│  ├─ App.tsx           # auth-gate, theme, header
-│  ├─ api.ts            # fetch-обёртки + in-memory cache 3s TTL
-│  ├─ types.ts          # все интерфейсы (Order, Client, Payer.type и т.д.)
-│  ├─ store.ts          # filters localStorage
-│  ├─ seedData.ts       # демо-данные
-│  ├─ index.css         # @import tailwindcss + sheet styles
-│  ├─ components/
-│  │  └─ LoginScreen.tsx
-│  └─ pages/
-│     └─ DashboardPage.tsx  # компактная таблица v10 (React-порт vanilla)
-├─ .env.example
-├─ vite.config.ts       # react, tailwindcss, singlefile, proxy /api -> :3000
-├─ vercel.json
-└─ README.md            # этот файл
-```
-
-### ENV
-
-```
-TURSO_DATABASE_URL=libsql://...
-TURSO_AUTH_TOKEN=eyJ...
-APP_PASSWORD=admin
-```
+### 🛠️ Технологический стек:
+* **Фронтенд**: React 18, TypeScript, Vite 5, TailwindCSS 4, Lucide React (иконки).
+* **Бэкенд**: Vercel Serverless Functions (`api/*.ts` на `@vercel/node`).
+* **База данных**: Turso Cloud SQLite (`@libsql/client/web`).
+* **Фавиконка**: Брендовая SVG-фавиконка [`public/favicon.svg`](file:///c:/DEV/2026/CRM%202026/public/favicon.svg).
 
 ---
 
-## Для ИИ — полный контекст
+## 🛡️ Архитектура прав доступа и пользователей
 
-### Назначение
+В A29 CRM реализовано четкое разделение ролей и изоляция данных:
 
-Внутренний инструмент для 2-3 сотрудников рекламного агентства. Учет заказов, клиентов, подрядчиков, плательщиков, расчет зарплаты, история с отменой. Интерфейс должен быть максимально компактным как Google Sheets — редактирование прямо в ячейках, строки одинаковой высоты 28px с `...`, полный текст только в верхней edit-bar.
+1. **`admin` (Главный Администратор — учетка `admin / admin`)**:
+   * Имеет доступ ко всему функционалу и специальной вкладке **«Пользователи»** ([`UsersTab.tsx`](file:///c:/DEV/2026/CRM%202026/src/components/UsersTab.tsx)) для управления менеджерами (создание, сброс паролей, изменение ролей).
+   * **«🛡️ Панель Администратора: Просмотр данных»**: Выпадающий селектор над таблицей (`🌐 Все менеджеры (Сводная база агентства) | 👤 Алексей | 👤 Мария ...`), позволяющий смотреть общую сводку агентства или мгновенно переключаться в базу любого отдельного сотрудника.
+   * **Защита от случайного удаления сотрудников**: При попытке удалить учетную запись менеджера требуется вручную вписать его логин для подтверждения. **Данные сотрудников НЕ удаляются** — все заказы, клиенты и подрядчики удаляемого пользователя автоматически сохраняются и переназначаются в общую базу агентства (`usr_alex`).
 
-### Сущности
+2. **`user` (Менеджер — учетка `alex / alex123` и новые сотрудники)**:
+   * Работает исключительно со своими заказами, клиентами, подрядчиками и счетами.
+   * Вкладка «Пользователи» и Панель администратора для него **скрыты**.
 
-- **Order**: id, date (YYYY-MM-DD), clientId, productName (длинное, wrap -> ellipsis), contractors: OrderContractorRow[], saleAmount, saleFormula (если начинается с `=` — вычисляется), paymentReceiverId, paymentNote (№ счета, активно только если payer.type != cash), paymentReceived bool, status active/completed, note, createdAt. Вычисляемые: costs = Σ costValue, profit = sale - costs, rent = profit/sale*100.
-- **OrderContractorRow**: id, contractorId, description, costFormula (строка с `=`), costValue (вычисленное), payerId, paid bool, reconciled bool, note.
-- **Client**: id, name, phone, contactPerson, email, note, customFields (не используется в compact версии), createdAt.
-- **Contractor**: id, name, phone, note — в новой версии это могут быть менеджеры (например "Менеджер Алексей").
-- **Payer**: id, name, type: cashless | cash | card, createdAt. Логика: если type===cash — paymentNote очищается и поле неактивно.
-- **HistoryEntry**: id, timestamp, action, description, snapshot {clients, contractors, payers, orders} — JSON.
-- **SalaryRecord**: пока упрощено, в отчетах считается на лету.
+---
 
-### Бизнес-правила (важно!)
+## 📋 Модули и ключевые возможности
 
-1. **№ счета**: активно только если плательщик в Заказах имеет type != cash. Если меняется получатель на cash — paymentNote='' .
-2. **Формулы**: поле стоимости подрядчика и реализация поддерживают `=`. Если начинается с `=` — парсится через mathjs (fullstack) или Function (offline). `**` заменяется на `*` для совместимости с примером `=6**3**2*450`. При невалидной формуле → 0.
-3. **Продукция и примечание**: в таблице всегда `...` (28px), полный текст с переносами только в верхней textarea edit-bar. Enter сохраняет, Shift+Enter перенос.
-4. **Раскрытие подрядчиков**: клик по `#` (вся ячейка 56px) тогглит expanded. Внутри своя таблица без подсказок (убраны по требованию).
-5. **Добавление**: + Добавить в любой вкладке создает пустую строку без модалок. Правка — клик/даблклик inline. Удаление — сразу, без confirm (можно отменить через историю).
-6. **Фильтры**: статус, месяц, период, поиск по всей инфе заказа, сортировка. Сохраняются в localStorage (store.ts) в прототипе, в fullstack — тоже.
-7. **История**: пишется на каждый `updateOrder`, `updateContractor`, `updateGeneric`, создание/удаление. До 50 записей. `undoLast` откатывает последний snapshot.
-8. **Отчеты**:
-   - Месячный — заказы за `report.month`, статы реал/прибыль/зарплата.
-   - По клиенту/подрядчику — фильтр по ID.
-   - Зарплатный №1 — кастом: заказы за месяц + если выбран contractorId — сумма его работ за месяц (contractorTotal) суммируется к базе `baseSalary = profit*%`. + отчет по наличке: заказы где payer.type===cash, разбивка получено/к получению. Формула показывается внизу.
-9. **Топ интерфейс**: не трогать таблицу, но отделить фильтры: body #e8edf3, шапка белая с тенью, активный таб синий заливка белый текст, toolbar и edit-bar — белые карточки с radius 12px, margin 12px 16px, shadow, edit-bar с левой синей полосой 4px. Таблица — отдельная карточка с margin и тенью.
+### 1. Заказы ([`OrdersTab.tsx`](file:///c:/DEV/2026/CRM%202026/src/components/OrdersTab.tsx))
+* **Формулы по стандарту Excel / 1С**: Ячейки в колонке «Сумма реал.» в обычном состоянии отображают **готовый рассчитанный результат** (например, `15 408 ₽`), а текст формулы (например, `=200*16+10`) скрывается и выводится только при клике на ячейку или в верхнем окне формул.
+* **Сквозной (глубокий) поиск**: Поисковая строка ищет не только по продукции и клиенту, но и по подтаблицам подрядчиков (название подрядчика, описание работ, формулы расходов, счета, примечания).
+* **Динамическое раскрытие подтаблиц при поиске**: Найденные подрядчики автоматически раскрываются на лету во время печати, а при очистке поиска подтаблицы сами возвращаются в исходное свернутое состояние.
+* **Кнопка «▲ Свернуть все»**: Мгновенно сворачивает все открытые подтаблицы подрядчиков в 1 клик.
+* **Навигация стрелками**: Поддержка клавиш `←` `→` `↑` `↓` и `Enter` для перемещения по ячейкам таблицы.
 
-### Tech Stack (original spec vs prototype)
+### 2. Подрядчики и Затраты (Подтаблица в заказах)
+* **Синхронизация с верхним Edit-Bar**: Клик по любой ячейке подрядчика («Описание работ», «Формула (=)», «Примечание») моментально передает текст в верхнее окно ввода для комфортного чтения и редактирования длинных описаний.
+* **Чистые значения по умолчанию**: При клике на `+ Добавить подрядчика` новые селекторы устанавливаются в значение `-- Выберите --`, а поле формулы расходов — изначально пустое (`placeholder=""`).
 
-- **Spec**: React 19 + TS5 strict, Tailwind 4 via @tailwindcss/vite, Vite 7 + vite-plugin-singlefile, Vercel Functions api/, Turso via @libsql/client, mathjs, uuid, lucide-react, clsx+tailwind-merge, pnpm, deployment Vercel.
-- **Prototype v10 (index.html)**: vanilla JS, no CDN (offline), safeLS wrappers for sandboxed iframe (sessionStorage may throw), `evalFormula` via Function, no React, no Tailwind CDN (inline CSS), no backend, localStorage key `crm_v10_reports_fixed`. Работает в Arena preview (allow-scripts без allow-same-origin).
-- **Fullstack**: реализует spec, но DashboardPage — React-порт v10 для сохранения compact UI.
+### 3. Отчеты и Сверка ([`ReportsTab.tsx`](file:///c:/DEV/2026/CRM%202026/src/components/ReportsTab.tsx))
+* 📅 **Месячный отчет**: Сводка по выручке, затратам, валовой прибыли и фонду ЗП.
+* 👤 **Отчет по клиенту**: Детализация реализации и прибыли по выбранному клиенту.
+* 🏗️ **Отчет сверки по подрядчику**: 
+  * Интерактивное прямое редактирование сумм и формул расходов прямо из таблицы отчета с мгновенным перерасчетом и сохранением в БД.
+  * Фильтр состояния сверки: 🔘 **Все**, 🔘 **✓ Сверено**, 🔘 **⏳ Не сверено** с живыми счетчиками записей.
+* 💰 **Зарплатный расчет**: Расчет ЗП с учетом процента от прибыли, платежей по картам, собственных работ менеджера и сохранением ведомостей в БД.
+* **Сохранение состояния между вкладками**: Все параметры отчетов (выбранная под-вкладка, подрядчик, период, фильтр сверки) автоматически сохраняются в `localStorage` и не сбрасываются при переключении на «Заказы» и обратно.
 
-### Важные файлы в прототипе (index.html v10)
+### 4. Журнал регистраций и восстанавливаемые снимки ([`HistoryTab.tsx`](file:///c:/DEV/2026/CRM%202026/src/components/HistoryTab.tsx))
+* Хранит всю историю действий и снимков (snapshots) базы данных в Turso DB.
+* Пагинация с кнопками `Загрузить 100`, `Загрузить 200`, `Всю историю (500)`.
+* Возможность в 1 клик отмотать состояние базы данных на момент любого исторического снимка.
 
-- `safeLSGet/Set` — fallback memStore для песочницы
-- `isCashPayer(list,id)` — проверяет payer.type === 'cash' (новая логика) + legacy name includes 'наличн'
-- `formatDateHuman` — `21 авг 2024`
-- `evalFormula` — без mathjs, Function + regex `^[0-9+\-*/().]+$`
-- `calcTotals`
-- `seedClients/Contractors/Payers` — payers с type
-- `LS_KEY` — версия, bump при breaking change чтобы очистить демо-данные
-- `state` — tab, reportSub, expanded, activeCell {row,col,oid,field,tab,cid}, editBarText
-- `pushHistory` / `undoLast` / `updateOrder` / `updateContractor` / `updateGeneric` / `addContractorRow` / `createOrder` / `duplicateOrder` / `deleteOrder`
-- Render: header + toolbar (filters) + edit-bar (textarea) + stats + sheet-wrap table
-  - order row: rownum expand, date human, client select, product editable div.cell-truncate, costs, sale editable with formula, profit, rent, payer select, invoice editable (disabled if cash), paid checkbox, note editable, status button near actions, actions copy/delete only (view removed as requested)
-  - contractor sub-table: contractor select, description editable, formula input with live update without rerender (fixed bug), =value, payer select, paid/reconciled, note
-  - clients/contractors/payers tabs: generic search, + Добавить creates empty row + immediate dblclick focus, editable via click (active) / dblclick (input/textarea inline), no modals, delete immediate with history
-  - reports: standardized `report-page` / `report-filters` / `report-stats` / `report-section` — month, client, contractor (editable payer/paid/reconciled), salary1 (orders + contractor works summed + cash)
-  - history: clear/restore (native confirm fallback, but in v10 custom modal removed for simplicity — uses native confirm which may be blocked in iframe, but in fullstack uses custom modal)
+### 5. Выгрузка и Загрузка JSON ([`NavigationTabs.tsx`](file:///c:/DEV/2026/CRM%202026/src/components/NavigationTabs.tsx))
+* Выпадающее меню выгрузки:
+  * 🌐 **Вся база целиком (JSON)**
+  * 👥 **Только Клиенты (JSON)**
+  * 🏗️ **Только Подрядчики (JSON)**
+  * 📋 **Только Заказы (JSON)**
 
-### Известные баги и фиксы
+### 6. Мобильная адаптивность & Тёмная тема ([`index.css`](file:///c:/DEV/2026/CRM%202026/src/index.css))
+* **Тёмная тема (Dark Mode)**: Четкий высококонтрастный текст, глубокие темно-серые подложки (`#1c1f26`), полупрозрачные (45% opacity) выполненные заказы для визуального разделения с активными заказами.
+* **Мобильная адаптация**: Плавный горизонтальный скролл навигационных вкладок и компактное Burger Menu для профиля/темы/выхода на смартфонах.
 
-- **Формула подрядчиков слетала после 1 цифры**: причина — `input` event вызывал `updateContractor` → `render()` → инпут уничтожался. Фикс v10: отдельный handler `formula-input` live update без render, обновляет только `.cost-value` текст и `saveData`, а `blur` делает полный render для итогов.
-- **Добавление клиентов/подрядчиков не работало**: `prompt/confirm` заблокированы в sandboxed iframe Arena (нужен `allow-modals`). Фикс: убраны все модалки для этих вкладок, добавление создает пустую строку и сразу фокус.
-- **Продукция не обрезалась ...**: было `white-space:normal` для wrap. Фикс: `height:28px`, `max-width:1px`, `white-space:nowrap`, `overflow:hidden`, `text-overflow:ellipsis`, внутренний `.cell-truncate` div с `padding:0 8px`.
-- **Номер счета можно вписать в Наличные**: фикс — `isCashPayer` по `type`, очистка paymentNote при смене на cash, ячейка `—` и `background:#f1f5f9`.
-- **Сессия падает в preview**: `sessionStorage` доступ кидает `SecurityError` в sandboxed iframe без `allow-same-origin`. Фикс: обернуть в try/catch + memStore fallback.
-- **Топ сливается**: было все `#f8fafc` постельное. Фикс: body `#e8edf3`, header white с тенью, активный таб синий заливка белый текст, toolbar/edit-bar/sheet-wrap — белые карточки с `margin:12px 16px`, `border-radius:12px`, `box-shadow`.
+---
 
-### Что НЕ реализовано в веб-прототипе (как просил автор)
-
-- Нет Vercel Functions (`api/`), нет Turso, нет `migrate.ts` в прототипе — только localStorage.
-- Нет `vite-plugin-singlefile` сборки — один HTML.
-- Нет `uuid` пакета — `genId()` кастомный.
-- Нет `lucide-react` — иконки эмодзи/текст.
-- Нет `customFields` у клиентов (доп поля) — хранится но не редактируется.
-- Нет полноценного аудит-трейла зарплаты (salary_records) — в отчетах считается на лету.
-- Нет `Tooltip` компонента.
-- Нет `SearchSelect` с portal — используется native `<select>` с кастомной стрелкой для offline.
-- Нет ENV-переменных в прототипе.
-
-Все это реализовано в `crm-fullstack/` папке — там есть `api/*.ts`, `migrate.ts`, `api.ts` с кэшем 3s TTL.
-
-### Как AI должен продолжать
-
-- Не трогать таблицу (sheet-grid) без явного запроса — она считается нормальной.
-- Топ фильтры и шапку можно улучшать, но сохранять отделение карточками.
-- Все новые поля в Payers должны иметь type, и логика № счета должна зависеть от type.
-- Все редактирование — inline, без модалок, с верхней edit-bar для длинного текста с переносами.
-- Формулы должны поддерживать `=` в реализации и в подрядчиках, live update без потери фокуса.
-- История должна писаться на каждый `update*`.
-- Отчеты — стандартизировать через `report-page` / `report-section` / `report-stats`.
-- При добавлении нового отчета — добавлять в `reportSub` и в фильтры `state.data.report`.
-- Bump `LS_KEY` при breaking change в структуре данных.
-
-### Деплой чеклист для человека
-
-- [ ] `turso db create` + token
-- [ ] `.env` заполнить
-- [ ] `pnpm install`
-- [ ] `pnpm migrate`
-- [ ] `pnpm dev` проверить http://localhost:5173
-- [x] `vercel env add` все переменные (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `OPENROUTER_API_KEY`)
-- [x] `git push` (автоматический деплой Vercel + GitVerse)
-- [x] Проверить что `/api/orders?userId=usr_alex` возвращает JSON с заказами
-- [x] Импортировать старый JSON если есть через кнопку Import (создает history snapshot)
-
-### Особенности серверлесс-интеграции Vercel + Turso (v8.3.9)
+## 🛠️ Серверная архитектура Vercel + Turso Cloud
 
 1. **Динамический импорт клиента Turso (`@libsql/client/web`)**:
-   - Каждая серверлесс-функция в `api/*.ts` использует динамический импорт `await import('@libsql/client/web')` прямо внутри обработчика, что решает проблемы сборки и cold start на Vercel Node.js runtime.
+   Каждая серверлесс-функция в [`api/*.ts`](file:///c:/DEV/2026/CRM%202026/api/) использует динамический импорт `await import('@libsql/client/web')` внутри handler, что обеспечивает быстрый старт на Vercel Node.js runtime.
 2. **Санитаризация типов SQLite → JSON**:
-   - Ответы из БД принудительно приводятся к примитивным типам JavaScript (`String(...)`, `Number(...)`, `Boolean(...)`). Это предотвращает ошибки `500 Internal Server Error` из-за несериализуемых типов данных при отправке ответа `res.json()`.
-3. **Отсутствие DDL-накладных расходов при каждом запросе**:
-   - `ensureTables` не вызывается на каждый GET/POST-запрос, избегая массовых параллельных блокировок SQLite (`SQLITE_BUSY`) и таймаутов на Vercel. Миграция структуры производится при необходимости отдельным скриптом `pnpm migrate`.
-4. **Фильтрация по текущему месяцу**:
-   - При открытии CRM параметр месяца по умолчанию устанавливается в текущий календарный месяц (`YYYY-MM`), что предотвращает скрытие новых заказов из-за сохраненных в `localStorage` старых фильтров.
+   Ответы из БД приводятся к примитивным типам JavaScript (`String(...)`, `Number(...)`, `Boolean(...)`) для исключения ошибок `500 Internal Server Error`.
+3. **Бессрочное сохранение данных**:
+   Все записи истории и сущности сохраняются в облаке Turso без ограничения по времени.
 
+---
+
+## 💻 Локальный запуск и Деплой
+
+### 1. Запуск локально:
+```bash
+# Установка зависимостей
+pnpm install
+
+# Миграция структуры базы данных Turso (создание таблиц)
+pnpm migrate
+
+# Запуск в режиме разработки (Vite + local Serverless API)
+pnpm dev
+```
+Откройте в браузере: `http://localhost:5173`.
+
+### 2. Деплой:
+При любом коммите и push в ветку `main`:
+* **Vercel**: Автоматически деплоит фронтенд и API функции (`/api/*`).
+* **GitHub**: [`github.com/penkin-repo/CRM-2026`](https://github.com/penkin-repo/CRM-2026)
+* **GitVerse**: [`gitverse.ru/penkin-repo/crm-2026-A29`](https://gitverse.ru/penkin-repo/crm-2026-A29)
+
+---
+
+## 📁 Файловая структура проекта
+
+```
+CRM 2026/
+├── public/
+│   └── favicon.svg          # Брендовая SVG-фавиконка
+├── api/                     # Vercel Serverless Functions
+│   ├── auth.ts              # Логин и проверка ролей (admin / user)
+│   ├── clients.ts           # CRUD клиентов
+│   ├── contractors.ts       # CRUD подрядчиков
+│   ├── history.ts           # Журнал действий с пагинацией limit
+│   ├── orders.ts            # CRUD заказов с подтаблицами подрядчиков
+│   ├── payers.ts            # CRUD плательщиков (касса / безнал / карта)
+│   ├── salary.ts            # Хранение проведенных зарплатных ведомостей
+│   └── users.ts             # Управление аккаунтами сотрудников
+├── src/
+│   ├── components/
+│   │   ├── HistoryTab.tsx   # Таблица истории с пагинацией
+│   │   ├── NavigationTabs.tsx # Вкладки навигации, выгрузка JSON, бургер-меню
+│   │   ├── OrdersTab.tsx    # Главная таблица заказов с формулами и поиском
+│   │   ├── ReportsTab.tsx   # Интерактивные отчеты и сверка
+│   │   └── UsersTab.tsx     # Управление пользователями для Администратора
+│   ├── pages/
+│   │   └── DashboardPage.tsx # Главный контейнер CRM и Панель Админа
+│   ├── utils/
+│   │   └── formula.ts       # Вычисление математических формул (=)
+│   ├── api.ts               # API-клиент с кэшированием 3s TTL
+│   ├── index.css            # Дизайн-система, Sheet Grid, Dark Mode
+│   └── version.ts           # Версия приложения (v8.7.0)
+├── index.html               # Точка входа HTML с подключением favicon.svg
+├── vercel.json              # Конфигурация Vercel Serverless Rewrites
+└── README.md                # Документация проекта
+```
