@@ -533,7 +533,12 @@ export default function OrdersTab({
                         <input
                           id={`cell-${order.id}-saleAmount`}
                           type="text"
-                          value={order.saleFormula || (order.saleAmount ? String(order.saleAmount) : '')}
+                          value={
+                            isCellActive('saleAmount')
+                              ? (order.saleFormula || (order.saleAmount ? String(order.saleAmount) : ''))
+                              : (order.saleAmount ? Number(order.saleAmount).toLocaleString('ru-RU') : '')
+                          }
+                          title={order.saleFormula ? `Формула: ${order.saleFormula}` : undefined}
                           onFocus={() => {
                             setActiveCell({ oid: order.id, field: 'saleAmount' })
                             setEditBar(order.saleFormula || String(order.saleAmount || ''))
