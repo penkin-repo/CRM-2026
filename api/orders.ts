@@ -1,5 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb } from './db'
+
+async function getDb() {
+  const url = process.env.TURSO_DATABASE_URL
+  const token = process.env.TURSO_AUTH_TOKEN
+  if (!url || !token) return null
+  try {
+    const { createClient } = await import('@libsql/client/web')
+    const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
+    return createClient({ url: resolvedUrl, authToken: token })
+  } catch (e) {
+    console.error('Failed to create Turso client:', e)
+    return null
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   res.setHeader('Content-Type', 'application/json')
