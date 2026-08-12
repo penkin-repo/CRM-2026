@@ -39,47 +39,47 @@ export default function NavigationTabs({
   onImportJSON
 }: NavigationTabsProps) {
   return (
-    <div className="bg-[#f0f2f5] border-b border-[#b8bdc5] px-3 py-1.5 flex items-center gap-2 shadow-2xs select-none">
-      <div className="flex gap-1 bg-[#d9dce1] p-0.5 rounded border border-[#b8bdc5]">
+    <div className="bg-[#f0f2f5] border-b border-[#b8bdc5] px-3 py-1.5 flex items-center gap-2 shadow-2xs select-none overflow-x-auto max-w-full">
+      <div className="flex gap-1 bg-[#d9dce1] p-0.5 rounded border border-[#b8bdc5] shrink-0 whitespace-nowrap">
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'orders' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'orders' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('orders')}
         >
           <ClipboardList className="w-3.5 h-3.5" /> Заказы ({ordersCount})
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'clients' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'clients' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('clients')}
         >
           <Users className="w-3.5 h-3.5" /> Клиенты ({clientsCount})
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'contractors' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'contractors' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('contractors')}
         >
           <Building2 className="w-3.5 h-3.5" /> Подрядчики ({contractorsCount})
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'payers' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'payers' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('payers')}
         >
           <CreditCard className="w-3.5 h-3.5" /> Плательщики ({payersCount})
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'reports' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'reports' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('reports')}
         >
           <BarChart3 className="w-3.5 h-3.5" /> Отчеты
         </button>
         <button
-          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+          className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'history' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
           onClick={() => setActiveTab('history')}
         >
           <History className="w-3.5 h-3.5" /> Журнал ({historyCount})
         </button>
         {isAdmin && (
           <button
-            className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
+            className={`px-3 py-1 text-xs font-bold rounded cursor-pointer transition border flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'users' ? 'bg-[#ffcc00] border-[#d9a800] text-[#1c1d1f] shadow-xs' : 'bg-[#e6e9ed] border-transparent text-[#44474e] hover:bg-white'}`}
             onClick={() => setActiveTab('users')}
           >
             <ShieldCheck className="w-3.5 h-3.5" /> Пользователи
@@ -87,15 +87,15 @@ export default function NavigationTabs({
         )}
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2 shrink-0 whitespace-nowrap">
         <button
-          className="text-xs border border-[#b8bdc5] rounded px-2.5 py-1 bg-white hover:bg-slate-100 font-medium cursor-pointer shadow-2xs text-[#22252a] flex items-center gap-1"
+          className="text-xs border border-[#b8bdc5] rounded px-2.5 py-1 bg-white hover:bg-slate-100 font-medium cursor-pointer shadow-2xs text-[#22252a] flex items-center gap-1 shrink-0 whitespace-nowrap"
           onClick={onExportJSON}
           title="Выгрузить данные A29 CRM (JSON)"
         >
           <Download className="w-3.5 h-3.5 text-slate-600" /> Выгрузка
         </button>
-        <label className="text-xs border border-[#b8bdc5] rounded px-2.5 py-1 bg-white hover:bg-slate-100 font-medium cursor-pointer shadow-2xs text-[#22252a] flex items-center gap-1">
+        <label className="text-xs border border-[#b8bdc5] rounded px-2.5 py-1 bg-white hover:bg-slate-100 font-medium cursor-pointer shadow-2xs text-[#22252a] flex items-center gap-1 shrink-0 whitespace-nowrap">
           <Upload className="w-3.5 h-3.5 text-slate-600" /> Загрузка
           <input type="file" accept=".json" onChange={onImportJSON} className="hidden" />
         </label>
