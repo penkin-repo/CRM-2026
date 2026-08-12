@@ -1,5 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb } from './db'
+
+async function getDb() {
+  const url = process.env.TURSO_DATABASE_URL
+  const token = process.env.TURSO_AUTH_TOKEN
+  if (!url || !token) return null
+  try {
+    const { createClient } = await import('@libsql/client/web')
+    const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
+    return createClient({ url: resolvedUrl, authToken: token })
+  } catch (e) {
+    console.error('Failed to create Turso client:', e)
+    return null
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   res.setHeader('Content-Type', 'application/json')
@@ -16,22 +29,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         args = [userId]
       }
       const r = await db.execute({ sql, args })
-      const rows = r.rows.map(row => {
+      const rows = r.rows.map((row: any) => {
         let parsedFields = []
         try {
-          parsedFields = typeof row.custom_fields === 'string' ? JSON.parse(row.custom_fields || '[]') : (row.custom_fields || [])
+          if (typeof row.custom_fields === 'string') {
+            parsedFields = JSON.parse(row.custom_fields || '[]')
+          } else if (Array.isArray(row.custom_fields)) {
+            parsedFields = row.custom_fields
+          }
         } catch {}
+
         return {
-          id: row.id,
-          name: row.name,
-          phone: row.phone,
-          contactPerson: row.contact_person,
-          email: row.email,
-          note: row.note,
+          id: String(row.id ?? ''),
+          name: String(row.name ?? ''),
+          phone: String(row.phone ?? ''),
+          contactPerson: String(row.contact_person ?? ''),
+          email: String(row.email ?? ''),
+          note: String(row.note ?? ''),
           customFields: parsedFields,
-          createdAt: row.created_at,
-          type: (row as any).type || undefined,
-          userId: (row as any).user_id || ''
+          createdAt: String(row.created_at ?? ''),
+          type: row.type ? String(row.type) : undefined,
+          userId: String(row.user_id ?? '')
         }
       })
       return res.status(200).json(rows)
@@ -44,14 +62,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       await db.execute({
         sql: `INSERT INTO clients (id,name,phone,contact_person,email,note,custom_fields,created_at,user_id) VALUES (?,?,?,?,?,?,?,?,?)
               ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, contact_person=excluded.contact_person, email=excluded.email, note=excluded.note, custom_fields=excluded.custom_fields, user_id=excluded.user_id`,
-        args: [b.id, b.name||'', b.phone||'', b.contactPerson||'', b.email||'', b.note||'', customFieldsStr, b.createdAt||new Date().toISOString(), b.userId||'usr_alex']
+        args: [String(b.id), String(b.name||''), String(b.phone||''), String(b.contactPerson||''), String(b.email||''), String(b.note||''), customFieldsStr, String(b.createdAt||new Date().toISOString()), String(b.userId||'usr_alex')]
       })
       return res.status(200).json({ ok: true })
     }
 
     if (req.method === 'DELETE') {
       const id = req.query.id as string
-      await db.execute({ sql: 'DELETE FROM clients WHERE id=?', args: [id] })
+      await db.execute({ sql: 'DELETE FROM clients WHERE id=?', args: [String(id)] })
       return res.status(200).json({ ok: true })
     }
 
@@ -59,6 +77,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
   } catch (err: any) {
     console.error('Clients API error:', err)
     if (req.method === 'GET') return res.status(200).json([])
-    return res.status(500).json({ ok: false, error: err.message })
+    return res.status(500).json({ ok: false, error: err?.message || String(err) })
   }
 }

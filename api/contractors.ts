@@ -1,5 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb } from './db'
+
+async function getDb() {
+  const url = process.env.TURSO_DATABASE_URL
+  const token = process.env.TURSO_AUTH_TOKEN
+  if (!url || !token) return null
+  try {
+    const { createClient } = await import('@libsql/client/web')
+    const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
+    return createClient({ url: resolvedUrl, authToken: token })
+  } catch (e) {
+    console.error('Failed to create Turso client:', e)
+    return null
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
   res.setHeader('Content-Type', 'application/json')
@@ -16,13 +29,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         args = [userId]
       }
       const r = await db.execute({ sql, args })
-      return res.status(200).json(r.rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        note: row.note,
-        createdAt: row.created_at,
-        userId: (row as any).user_id || ''
+      return res.status(200).json(r.rows.map((row: any) => ({
+        id: String(row.id ?? ''),
+        name: String(row.name ?? ''),
+        phone: String(row.phone ?? ''),
+        note: String(row.note ?? ''),
+        createdAt: String(row.created_at ?? ''),
+        userId: String(row.user_id ?? '')
       })))
     }
 
@@ -32,13 +45,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       await db.execute({
         sql: `INSERT INTO contractors (id,name,phone,note,created_at,user_id) VALUES (?,?,?,?,?,?)
               ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, note=excluded.note, user_id=excluded.user_id`,
-        args: [b.id, b.name, b.phone||'', b.note||'', b.createdAt||new Date().toISOString(), b.userId||'usr_alex']
+        args: [String(b.id), String(b.name||''), String(b.phone||''), String(b.note||''), String(b.createdAt||new Date().toISOString()), String(b.userId||'usr_alex')]
       })
       return res.status(200).json({ ok: true })
     }
 
     if (req.method === 'DELETE') {
-      await db.execute({ sql: 'DELETE FROM contractors WHERE id=?', args: [req.query.id as string] })
+      await db.execute({ sql: 'DELETE FROM contractors WHERE id=?', args: [String(req.query.id as string)] })
       return res.status(200).json({ ok: true })
     }
 
@@ -46,6 +59,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
   } catch (err: any) {
     console.error('Contractors API error:', err)
     if (req.method === 'GET') return res.status(200).json([])
-    return res.status(500).json({ ok: false, error: err.message })
+    return res.status(500).json({ ok: false, error: err?.message || String(err) })
   }
 }
