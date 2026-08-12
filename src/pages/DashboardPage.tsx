@@ -330,13 +330,31 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   }
 
   // Export / Import
-  const handleExportJSON = () => {
-    const data = JSON.stringify({ orders, clients, contractors, payers, history }, null, 2)
+  const handleExportJSON = (type: 'all' | 'clients' | 'contractors' | 'orders' = 'all') => {
+    const dateStr = new Date().toISOString().slice(0, 10)
+    let payload: any = {}
+    let filename = `crm-a29-backup-${dateStr}.json`
+
+    if (type === 'clients') {
+      payload = { clients }
+      filename = `crm-a29-clients-${dateStr}.json`
+    } else if (type === 'contractors') {
+      payload = { contractors }
+      filename = `crm-a29-contractors-${dateStr}.json`
+    } else if (type === 'orders') {
+      payload = { orders }
+      filename = `crm-a29-orders-${dateStr}.json`
+    } else {
+      payload = { orders, clients, contractors, payers, history }
+      filename = `crm-a29-full-backup-${dateStr}.json`
+    }
+
+    const data = JSON.stringify(payload, null, 2)
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `crm-a29-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = filename
     a.click()
   }
 
