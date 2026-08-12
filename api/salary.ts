@@ -8,22 +8,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     await ensureTables(db)
 
     if(req.method==='GET'){
-      const r=await db.execute('SELECT * FROM salary_records ORDER BY month DESC')
-      return res.json(r.rows.map(row=>({
-        id:row.id, month:row.month, salaryPercent:row.salary_percent, baseSalary:row.base_salary,
-        payerAdjustments: JSON.parse(row.payer_adjustments as string||'[]'),
-        totalAdjustment: row.total_adjustment, finalSalary: row.final_salary, paidAmount: row.paid_amount,
-        closedAt: row.closed_at, note: row.note, history: JSON.parse(row.history as string||'[]')
-      })))
+      const r = await db.execute('SELECT * FROM salary_records ORDER BY month DESC')
+      const rows = r.rows.map(row => {
+        let parsedPayerAdj = []
+        let parsedHist = []
+        try { parsedPayerAdj = typeof row.payer_adjustments === 'string' ? JSON.parse(row.payer_adjustments || '[]') : (row.payer_adjustments || []) } catch {}
+        try { parsedHist = typeof row.history === 'string' ? JSON.parse(row.history || '[]') : (row.history || []) } catch {}
+        return {
+          id: row.id,
+          month: row.month,
+          salaryPercent: row.salary_percent,
+          baseSalary: row.base_salary,
+          payerAdjustments: parsedPayerAdj,
+          totalAdjustment: row.total_adjustment,
+          finalSalary: row.final_salary,
+          paidAmount: row.paid_amount,
+          closedAt: row.closed_at,
+          note: row.note,
+          history: parsedHist
+        }
+      })
+      return res.json(rows)
     }
     if(req.method==='POST'){
-      let b=req.body
+      let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
+      const payerAdjStr = typeof b.payerAdjustments === 'string' ? b.payerAdjustments : JSON.stringify(b.payerAdjustments || [])
+      const historyStr = typeof b.history === 'string' ? b.history : JSON.stringify(b.history || [])
       await db.execute({
-        sql:`INSERT INTO salary_records (id,month,salary_percent,base_salary,payer_adjustments,total_adjustment,final_salary,paid_amount,closed_at,note,history)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)
-             ON CONFLICT(id) DO UPDATE SET month=excluded.month, salary_percent=excluded.salary_percent, base_salary=excluded.base_salary, payer_adjustments=excluded.payer_adjustments, total_adjustment=excluded.total_adjustment, final_salary=excluded.final_salary, paid_amount=excluded.paid_amount, closed_at=excluded.closed_at, note=excluded.note, history=excluded.history`,
-        args:[b.id,b.month,b.salaryPercent||60,b.baseSalary||0,JSON.stringify(b.payerAdjustments||[]),b.totalAdjustment||0,b.finalSalary||0,b.paidAmount||0,b.closedAt||null,b.note||'',JSON.stringify(b.history||[])]
+        sql: `INSERT INTO salary_records (id,month,salary_percent,base_salary,payer_adjustments,total_adjustment,final_salary,paid_amount,closed_at,note,history)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?)
+              ON CONFLICT(id) DO UPDATE SET month=excluded.month, salary_percent=excluded.salary_percent, base_salary=excluded.base_salary, payer_adjustments=excluded.payer_adjustments, total_adjustment=excluded.total_adjustment, final_salary=excluded.final_salary, paid_amount=excluded.paid_amount, closed_at=excluded.closed_at, note=excluded.note, history=excluded.history`,
+        args: [b.id, b.month||'', b.salaryPercent||60, b.baseSalary||0, payerAdjStr, b.totalAdjustment||0, b.finalSalary||0, b.paidAmount||0, b.closedAt||null, b.note||'', historyStr]
       })
       return res.json({ok:true})
     }
@@ -38,4 +54,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     return res.status(500).json({ ok: false, error: err.message })
   }
 }
-

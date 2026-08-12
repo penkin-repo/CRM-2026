@@ -8,13 +8,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     await ensureTables(db)
 
     if(req.method==='GET'){
-      const r=await db.execute('SELECT * FROM history ORDER BY timestamp DESC LIMIT 50')
-      return res.json(r.rows.map(row=>({ id:row.id, timestamp:row.timestamp, action:row.action, description:row.description, snapshot:row.snapshot })))
+      const r = await db.execute('SELECT * FROM history ORDER BY timestamp DESC LIMIT 50')
+      const rows = r.rows.map(row => {
+        let parsedSnapshot = row.snapshot
+        if (typeof row.snapshot === 'string') {
+          try { parsedSnapshot = JSON.parse(row.snapshot) } catch {}
+        }
+        return {
+          id: row.id,
+          timestamp: row.timestamp,
+          action: row.action,
+          description: row.description,
+          snapshot: parsedSnapshot,
+          userId: (row as any).user_id || ''
+        }
+      })
+      return res.json(rows)
     }
     if(req.method==='POST'){
-      let b=req.body
+      let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
-      await db.execute({sql:`INSERT INTO history (id,timestamp,action,description,snapshot) VALUES (?,?,?,?,?)`, args:[b.id,b.timestamp,b.action,b.description,b.snapshot]})
+      const snapshotStr = typeof b.snapshot === 'string' ? b.snapshot : JSON.stringify(b.snapshot || {})
+      await db.execute({
+        sql: `INSERT INTO history (id,timestamp,action,description,snapshot,user_id) VALUES (?,?,?,?,?,?)`,
+        args: [b.id, b.timestamp||'', b.action||'', b.description||'', snapshotStr, b.userId||'']
+      })
       return res.json({ok:true})
     }
     if(req.method==='DELETE'){
@@ -28,4 +46,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     return res.status(500).json({ ok: false, error: err.message })
   }
 }
-

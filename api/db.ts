@@ -1,12 +1,12 @@
-// No top-level static import — dynamic import used inside getDb() to avoid
-// Vercel cold-start module initialization failures that cause 500 on all endpoints
+import { createClient } from '@libsql/client/http'
+
+let tablesInitialized = false
 
 export async function getDb() {
   const url = process.env.TURSO_DATABASE_URL
   const token = process.env.TURSO_AUTH_TOKEN
   if (!url || !token) return null
   try {
-    const { createClient } = await import('@libsql/client/web')
     const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
     return createClient({ url: resolvedUrl, authToken: token })
   } catch (e) {
@@ -16,7 +16,8 @@ export async function getDb() {
 }
 
 export async function ensureTables(db: any) {
-  if (!db) return
+  if (!db || tablesInitialized) return
+  tablesInitialized = true
   try {
     await db.execute(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT 'user', created_at TEXT NOT NULL)`)
     await db.execute(`CREATE TABLE IF NOT EXISTS clients (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT DEFAULT '', contact_person TEXT DEFAULT '', email TEXT DEFAULT '', note TEXT DEFAULT '', custom_fields TEXT DEFAULT '[]', created_at TEXT NOT NULL, user_id TEXT DEFAULT '')`)
@@ -29,6 +30,3 @@ export async function ensureTables(db: any) {
     console.error('ensureTables error:', err)
   }
 }
-
-
-
