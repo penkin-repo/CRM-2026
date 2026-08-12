@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { UserPlus, Trash2 } from 'lucide-react'
+import { UserPlus, Trash2, ShieldAlert } from 'lucide-react'
 import type { User } from '../types'
 import { api } from '../api'
 
@@ -32,7 +32,7 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
       id: 'usr_' + Math.random().toString(36).slice(2, 7),
       username: 'user_' + Math.random().toString(36).slice(2, 6),
       password: '123',
-      name: 'Новый пользователь',
+      name: 'Новый менеджер',
       role: 'user',
       createdAt: new Date().toISOString()
     }
@@ -45,24 +45,35 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
     api.upsertUser(u).catch(() => {})
   }
 
-  const handleDeleteUser = (id: string) => {
-    if (id === currentUser.id) {
+  const handleDeleteUser = (u: User) => {
+    if (u.id === currentUser.id) {
       alert('Нельзя удалить текущего авторизованного пользователя!')
       return
     }
-    setUsers(prev => prev.filter(u => u.id !== id))
-    api.deleteUser(id).catch(() => {})
+
+    const confirmMsg = `ВНИМАНИЕ: Заказы, клиенты и подрядчики этого пользователя НЕ будут удалены — они автоматически сохранятся в общей базе агентства.\n\nДля подтверждения удаления аккаунта "${u.name}" введите его логин: ${u.username}`
+    const userInput = prompt(confirmMsg)
+
+    if (userInput !== u.username) {
+      if (userInput !== null) {
+        alert('Логин введен неверно! Удаление пользователя отменено для защиты данных.')
+      }
+      return
+    }
+
+    setUsers(prev => prev.filter(item => item.id !== u.id))
+    api.deleteUser(u.id).then(loadUsers).catch(() => {})
   }
 
   return (
     <div className="flex-1 flex flex-col p-3 overflow-auto">
       <div className="flex justify-between items-center mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
         <div>
-          <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
-            Справочник: Пользователи и Права доступа ({users.length})
+          <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 text-amber-600" /> Справочник: Пользователи и Права доступа ({users.length})
           </h2>
           <p className="text-[11px] text-[#555a64]">
-            Управление учётными записями, логинами и паролями для входа в систему
+            Управление учётными записями менеджеров. При удалении аккаунта все его заказы полностью сохраняются в базе.
           </p>
         </div>
         <button
@@ -73,7 +84,7 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
         </button>
       </div>
 
-      <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden">
+      <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden rounded">
         <table className="sheet-grid w-full">
           <thead>
             <tr>
@@ -82,7 +93,7 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
               <th className="sheet-header" style={{ width: 160 }}>Пароль</th>
               <th className="sheet-header" style={{ width: 220 }}>ФИО / Имя пользователя</th>
               <th className="sheet-header" style={{ width: 140 }}>Роль / Права</th>
-              <th className="sheet-header" style={{ width: 50 }}></th>
+              <th className="sheet-header" style={{ width: 60 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -127,14 +138,14 @@ export default function UsersTab({ currentUser }: UsersTabProps) {
                       className="w-full h-full text-xs px-2 outline-none bg-transparent cursor-pointer font-bold"
                     >
                       <option value="admin">Администратор</option>
-                      <option value="user">Пользователь</option>
+                      <option value="user">Менеджер</option>
                     </select>
                   </td>
                   <td className="sheet-cell text-center">
                     <button
-                      className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
-                      onClick={() => handleDeleteUser(u.id)}
-                      title="Удалить пользователя"
+                      className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer p-1"
+                      onClick={() => handleDeleteUser(u)}
+                      title="Безопасное удаление аккаунта"
                     >
                       <Trash2 className="w-3.5 h-3.5 inline" />
                     </button>

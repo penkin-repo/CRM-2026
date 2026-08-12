@@ -70,21 +70,28 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     } catch {}
   }, [statusFilter, searchQuery, selectedMonth, dateFrom, dateTo])
 
-  // Initial Data Load — always trust Turso API, never fall back to stale localStorage
+  // Admin view switcher state (all / specific user)
+  const [viewUserId, setViewUserId] = useState<string>(() => {
+    return currentUser.role === 'admin' ? 'all' : currentUser.id
+  })
+  const [allUsersList, setAllUsersList] = useState<User[]>([])
+
+  // Initial Data Load — always trust Turso API
   const loadAllData = async () => {
-    // Clear stale offline cache keys from old versions
     try {
       localStorage.removeItem('crm_v10_reports_fixed')
       localStorage.removeItem('crm_1c_backup')
     } catch {}
 
     try {
-      const [ordData, clData, coData, pyData, histData] = await Promise.all([
-        api.fetchOrders(currentUser.id).catch(() => []),
-        api.fetchClients(currentUser.id).catch(() => []),
-        api.fetchContractors(currentUser.id).catch(() => []),
-        api.fetchPayers(currentUser.id).catch(() => []),
-        api.fetchHistory().catch(() => [])
+      const targetId = currentUser.role === 'admin' ? viewUserId : currentUser.id
+      const [ordData, clData, coData, pyData, histData, usersData] = await Promise.all([
+        api.fetchOrders(targetId).catch(() => []),
+        api.fetchClients(targetId).catch(() => []),
+        api.fetchContractors(targetId).catch(() => []),
+        api.fetchPayers(targetId).catch(() => []),
+        api.fetchHistory().catch(() => []),
+        currentUser.role === 'admin' ? api.fetchUsers().catch(() => []) : Promise.resolve([])
       ])
 
       setOrders(Array.isArray(ordData) ? ordData : [])
@@ -92,6 +99,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       setContractors(Array.isArray(coData) ? coData : [])
       setPayers(Array.isArray(pyData) ? pyData : [])
       if (Array.isArray(histData)) setHistory(histData)
+      if (Array.isArray(usersData)) setAllUsersList(usersData)
     } catch (e) {
       console.error('Error loading data:', e)
     }
@@ -99,7 +107,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
 
   useEffect(() => {
     loadAllData()
-  }, [currentUser.id, currentUser.role])
+  }, [currentUser.id, currentUser.role, viewUserId])
 
   const logHistory = (action: string, description: string, currentSnapshot?: any) => {
     const snap = currentSnapshot || { clients, contractors, payers, orders }
@@ -387,6 +395,30 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
       />
+
+      {/* Admin Manager Database Switcher Bar */}
+      {currentUser.role === 'admin' && (
+        <div className="bg-[#fff8d6] border-b border-[#e5ba00] px-3 py-1 flex items-center justify-between gap-2 text-xs select-none shadow-2xs">
+          <span className="font-bold text-[#1c1d1f] flex items-center gap-1.5">
+            🛡️ Панель Администратора:
+          </span>
+          <div className="flex items-center gap-2">
+            <label className="font-semibold text-slate-700">Просмотр данных:</label>
+            <select
+              value={viewUserId}
+              onChange={e => setViewUserId(e.target.value)}
+              className="bg-white border border-[#d9a800] rounded px-2.5 py-0.5 text-xs font-bold outline-none cursor-pointer text-[#1c1d1f] shadow-2xs"
+            >
+              <option value="all">🌐 Все менеджеры (Сводная база агентства)</option>
+              {allUsersList.map(u => (
+                <option key={u.id} value={u.id}>
+                  👤 {u.name} ({u.username})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Tab Contents */}
       {activeTab === 'orders' && (

@@ -22,19 +22,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ ok: false, error: 'Заполните логин и пароль' })
     }
 
-    // 1. Direct local authentication for alex (instant, zero-dependency)
-    if (uLower === 'alex' && (passStr === 'alex123' || passStr === 'alex' || passStr === 'admin')) {
+    // 1. Direct local authentication for superadmin account
+    if (uLower === 'admin' && passStr === 'admin') {
       return res.status(200).json({
         ok: true,
-        user: { id: 'usr_alex', username: 'alex', name: 'Алексей', role: 'admin' }
+        user: { id: 'usr_admin', username: 'admin', name: 'Главный Администратор', role: 'admin' }
       })
     }
 
-    // 2. Optional Turso database check
+    // 2. Direct local authentication for alex (Manager role)
+    if (uLower === 'alex' && (passStr === 'alex123' || passStr === 'alex')) {
+      return res.status(200).json({
+        ok: true,
+        user: { id: 'usr_alex', username: 'alex', name: 'Алексей (Менеджер)', role: 'user' }
+      })
+    }
+
+    // 3. Optional Turso database check
     if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
       try {
-        const { getDb } = await import('./db')
-        const db = getDb()
+        const { createClient } = await import('@libsql/client/web')
+        const url = process.env.TURSO_DATABASE_URL
+        const token = process.env.TURSO_AUTH_TOKEN
+        const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
+        const db = createClient({ url: resolvedUrl, authToken: token })
+
         const r = await db.execute({
           sql: 'SELECT id, username, name, role FROM users WHERE LOWER(username) = LOWER(?) AND password = ?',
           args: [uClean, passStr]
@@ -47,8 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user: {
               id: String(u.id),
               username: String(u.username),
-              name: String(u.name || 'Алексей'),
-              role: String(u.role || 'admin')
+              name: String(u.name || u.username),
+              role: String(u.role || 'user')
             }
           })
         }
@@ -60,15 +72,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' })
   } catch (err: any) {
     console.error('Server Auth Error:', err)
-    // Emergency fallback so user alex is never locked out by server errors
+    // Emergency fallback: default to Alex (Manager)
     return res.status(200).json({
       ok: true,
-      user: { id: 'usr_alex', username: 'alex', name: 'Алексей', role: 'admin' }
+      user: { id: 'usr_alex', username: 'alex', name: 'Алексей (Менеджер)', role: 'user' }
     })
   }
 }
-
-
-
-
-

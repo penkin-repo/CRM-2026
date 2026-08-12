@@ -44,8 +44,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     }
 
     if (req.method === 'DELETE') {
-      const id = req.query.id as string
-      await db.execute({ sql: 'DELETE FROM users WHERE id=?', args: [String(id)] })
+      const id = String(req.query.id || '')
+      if (!id) return res.status(400).json({ ok: false, error: 'User ID is required' })
+
+      // Never delete data! Re-assign all orders, clients, contractors, payers to usr_alex
+      try { await db.execute({ sql: "UPDATE orders SET user_id = 'usr_alex' WHERE user_id = ?", args: [id] }) } catch {}
+      try { await db.execute({ sql: "UPDATE clients SET user_id = 'usr_alex' WHERE user_id = ?", args: [id] }) } catch {}
+      try { await db.execute({ sql: "UPDATE contractors SET user_id = 'usr_alex' WHERE user_id = ?", args: [id] }) } catch {}
+      try { await db.execute({ sql: "UPDATE payers SET user_id = 'usr_alex' WHERE user_id = ?", args: [id] }) } catch {}
+
+      // Delete user account
+      await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [id] })
       return res.status(200).json({ ok: true })
     }
 
