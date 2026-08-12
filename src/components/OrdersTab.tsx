@@ -166,26 +166,25 @@ export default function OrdersTab({
     return true
   })
 
-  // Auto-expand orders when searching for contractor records
-  useEffect(() => {
+  // Dynamic row expansion (expands during search without mutating manual collapse states)
+  const isRowExpanded = (order: Order) => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
-      const newExpanded: Record<string, boolean> = { ...expanded }
-      filteredOrders.forEach(o => {
-        const contractorMatch = (o.contractors || []).some(cr => {
-          const coName = (contractors.find(c => c.id === cr.contractorId)?.name || '').toLowerCase()
-          const desc = (cr.description || '').toLowerCase()
-          const crNote = (cr.note || '').toLowerCase()
-          const formula = (cr.costFormula || '').toLowerCase()
-          return coName.includes(q) || desc.includes(q) || crNote.includes(q) || formula.includes(q)
-        })
-        if (contractorMatch) {
-          newExpanded[o.id] = true
-        }
+      const contractorMatch = (order.contractors || []).some(cr => {
+        const coName = (contractors.find(c => c.id === cr.contractorId)?.name || '').toLowerCase()
+        const desc = (cr.description || '').toLowerCase()
+        const crNote = (cr.note || '').toLowerCase()
+        const formula = (cr.costFormula || '').toLowerCase()
+        return coName.includes(q) || desc.includes(q) || crNote.includes(q) || formula.includes(q)
       })
-      setExpanded(newExpanded)
+      if (contractorMatch) return true
     }
-  }, [searchQuery])
+    return !!expanded[order.id]
+  }
+
+  const handleCollapseAll = () => {
+    setExpanded({})
+  }
 
   // Keyboard Arrow Navigation Handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, orderId: string, currentField: string) => {
@@ -335,6 +334,16 @@ export default function OrdersTab({
           />
         </div>
 
+        {Object.keys(expanded).length > 0 && (
+          <button
+            onClick={handleCollapseAll}
+            className="text-[11px] bg-white border border-[#b8bdc5] hover:bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded cursor-pointer transition shadow-2xs"
+            title="Свернуть все открытые подтаблицы"
+          >
+            ▲ Свернуть все ({Object.keys(expanded).length})
+          </button>
+        )}
+
         <span className="text-xs text-[#555a64] font-medium ml-auto">Строк: {filteredOrders.length} (Навигация: ← → ↑ ↓)</span>
 
         <button
@@ -424,7 +433,7 @@ export default function OrdersTab({
             ) : (
               filteredOrders.map((order, idx) => {
                 const t = calcOrderTotals(order)
-                const isExp = !!expanded[order.id]
+                const isExp = isRowExpanded(order)
                 const cash = isCashPayer(order.paymentReceiverId)
                 const isCellActive = (field: string) => activeCell?.oid === order.id && activeCell?.field === field
                 const isCompleted = order.status === 'completed'
