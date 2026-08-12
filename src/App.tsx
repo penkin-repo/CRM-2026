@@ -46,13 +46,8 @@ export default function App() {
         <div className="w-8 h-8 bg-red-600 text-white rounded-md flex items-center justify-center font-black text-sm shadow-xs border border-red-700">
           A29
         </div>
-        <div className="flex flex-col">
-          <div className="font-extrabold text-sm text-[#1c1d1f] tracking-tight">
-            A29 CRM — Управление рекламным агентством
-          </div>
-          <div className="text-[10px] text-slate-700 font-semibold">
-            Редакция {APP_VERSION} • A29 CRM
-          </div>
+        <div className="hidden sm:block font-extrabold text-sm text-[#1c1d1f] tracking-tight">
+          A29 CRM
         </div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -67,7 +62,7 @@ export default function App() {
           >
             {theme === 'dark' ? <><Sun className="w-3.5 h-3.5" /> Светлая</> : <><Moon className="w-3.5 h-3.5" /> Темная</>}
           </button>
-          
+
           <button
             className="bg-red-700 hover:bg-red-800 text-white rounded px-2.5 py-1 text-xs font-semibold cursor-pointer shadow-2xs transition border border-red-800 flex items-center gap-1"
             onClick={handleLogout}
@@ -80,7 +75,7 @@ export default function App() {
       <DashboardPage currentUser={currentUser} />
 
       {/* Permanent Fixed Bottom-Right Version Indicator */}
-      <div className="fixed bottom-2 right-3 pointer-events-none z-50 text-[10px] font-mono font-bold text-slate-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 shadow-2xs select-none">
+      <div className="fixed bottom-2 right-3 pointer-events-none z-50 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400 select-none">
         A29 CRM {APP_VERSION} ({APP_BUILD})
       </div>
     </div>
