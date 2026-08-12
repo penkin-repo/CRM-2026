@@ -2,16 +2,19 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDb, ensureTables } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
+  res.setHeader('Content-Type', 'application/json')
   try {
     const db = await getDb()
-    if (!db) return res.json([])
+    if (!db) {
+      return res.status(200).json({ ok: false, error: 'Database client returned null. Check TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables in Vercel.' })
+    }
     await ensureTables(db)
 
-    if(req.method==='GET'){
+    if (req.method === 'GET') {
       const userId = req.query.userId as string
       let sql = 'SELECT * FROM orders ORDER BY date DESC'
       let args: any[] = []
-      if(userId && userId !== 'usr_admin' && userId !== 'all') {
+      if (userId && userId !== 'usr_admin' && userId !== 'all') {
         sql = "SELECT * FROM orders WHERE user_id = ? OR user_id = '' ORDER BY date DESC"
         args = [userId]
       }
@@ -39,9 +42,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
           userId: (row as any).user_id || ''
         }
       })
-      return res.json(rows)
+      return res.status(200).json(rows)
     }
-    if(req.method==='POST'){
+
+    if (req.method === 'POST') {
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       const contractorsStr = typeof b.contractors === 'string' ? b.contractors : JSON.stringify(b.contractors || [])
@@ -51,17 +55,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
               ON CONFLICT(id) DO UPDATE SET date=excluded.date, client_id=excluded.client_id, product_name=excluded.product_name, contractors=excluded.contractors, sale_amount=excluded.sale_amount, sale_formula=excluded.sale_formula, payment_receiver_id=excluded.payment_receiver_id, payment_note=excluded.payment_note, payment_received=excluded.payment_received, status=excluded.status, note=excluded.note, user_id=excluded.user_id`,
         args: [b.id, b.date||'', b.clientId||'', b.productName||'', contractorsStr, b.saleAmount||0, b.saleFormula||'', b.paymentReceiverId||'', b.paymentNote||'', b.paymentReceived?1:0, b.status||'active', b.note||'', b.createdAt||new Date().toISOString(), b.userId||'']
       })
-      return res.json({ok:true})
+      return res.status(200).json({ ok: true })
     }
-    if(req.method==='DELETE'){
+
+    if (req.method === 'DELETE') {
       const id = req.query.id as string
-      await db.execute({sql:'DELETE FROM orders WHERE id=?', args:[id]})
-      return res.json({ok:true})
+      await db.execute({ sql: 'DELETE FROM orders WHERE id=?', args: [id] })
+      return res.status(200).json({ ok: true })
     }
-    res.status(405).end()
+
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   } catch (err: any) {
     console.error('Orders API error:', err)
-    if (req.method === 'GET') return res.json([])
-    return res.status(500).json({ ok: false, error: err.message })
+    return res.status(200).json({
+      ok: false,
+      debugError: true,
+      message: err?.message || String(err),
+      stack: err?.stack || ''
+    })
   }
 }

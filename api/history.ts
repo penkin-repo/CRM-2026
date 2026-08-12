@@ -2,12 +2,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDb, ensureTables } from './db'
 
 export default async function handler(req: VercelRequest, res: VercelResponse){
+  res.setHeader('Content-Type', 'application/json')
   try {
     const db = await getDb()
-    if (!db) return res.json([])
+    if (!db) {
+      return res.status(200).json({ ok: false, error: 'Database client returned null.' })
+    }
     await ensureTables(db)
 
-    if(req.method==='GET'){
+    if (req.method === 'GET') {
       const r = await db.execute('SELECT * FROM history ORDER BY timestamp DESC LIMIT 50')
       const rows = r.rows.map(row => {
         let parsedSnapshot = row.snapshot
@@ -23,9 +26,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
           userId: (row as any).user_id || ''
         }
       })
-      return res.json(rows)
+      return res.status(200).json(rows)
     }
-    if(req.method==='POST'){
+
+    if (req.method === 'POST') {
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       const snapshotStr = typeof b.snapshot === 'string' ? b.snapshot : JSON.stringify(b.snapshot || {})
@@ -33,16 +37,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
         sql: `INSERT INTO history (id,timestamp,action,description,snapshot,user_id) VALUES (?,?,?,?,?,?)`,
         args: [b.id, b.timestamp||'', b.action||'', b.description||'', snapshotStr, b.userId||'']
       })
-      return res.json({ok:true})
+      return res.status(200).json({ ok: true })
     }
-    if(req.method==='DELETE'){
+
+    if (req.method === 'DELETE') {
       await db.execute('DELETE FROM history')
-      return res.json({ok:true})
+      return res.status(200).json({ ok: true })
     }
-    res.status(405).end()
+
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   } catch (err: any) {
     console.error('History API error:', err)
-    if (req.method === 'GET') return res.json([])
-    return res.status(500).json({ ok: false, error: err.message })
+    return res.status(200).json({
+      ok: false,
+      debugError: true,
+      message: err?.message || String(err),
+      stack: err?.stack || ''
+    })
   }
 }
