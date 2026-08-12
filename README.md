@@ -202,9 +202,19 @@ APP_PASSWORD=admin
 - [ ] `pnpm install`
 - [ ] `pnpm migrate`
 - [ ] `pnpm dev` проверить http://localhost:5173
-- [ ] `vercel env add` все три переменные
-- [ ] `vercel --prod`
-- [ ] Проверить что `/api/orders` возвращает JSON
-- [ ] Импортировать старый JSON если есть через кнопку Import (создает history snapshot)
+- [x] `vercel env add` все переменные (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `OPENROUTER_API_KEY`)
+- [x] `git push` (автоматический деплой Vercel + GitVerse)
+- [x] Проверить что `/api/orders?userId=usr_alex` возвращает JSON с заказами
+- [x] Импортировать старый JSON если есть через кнопку Import (создает history snapshot)
 
-Готово — можно качать папку `crm-fullstack` и деплоить.
+### Особенности серверлесс-интеграции Vercel + Turso (v8.3.9)
+
+1. **Динамический импорт клиента Turso (`@libsql/client/web`)**:
+   - Каждая серверлесс-функция в `api/*.ts` использует динамический импорт `await import('@libsql/client/web')` прямо внутри обработчика, что решает проблемы сборки и cold start на Vercel Node.js runtime.
+2. **Санитаризация типов SQLite → JSON**:
+   - Ответы из БД принудительно приводятся к примитивным типам JavaScript (`String(...)`, `Number(...)`, `Boolean(...)`). Это предотвращает ошибки `500 Internal Server Error` из-за несериализуемых типов данных при отправке ответа `res.json()`.
+3. **Отсутствие DDL-накладных расходов при каждом запросе**:
+   - `ensureTables` не вызывается на каждый GET/POST-запрос, избегая массовых параллельных блокировок SQLite (`SQLITE_BUSY`) и таймаутов на Vercel. Миграция структуры производится при необходимости отдельным скриптом `pnpm migrate`.
+4. **Фильтрация по текущему месяцу**:
+   - При открытии CRM параметр месяца по умолчанию устанавливается в текущий календарный месяц (`YYYY-MM`), что предотвращает скрытие новых заказов из-за сохраненных в `localStorage` старых фильтров.
+
