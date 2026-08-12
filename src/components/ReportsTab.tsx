@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Calendar, User, Building2, Wallet, Lock } from 'lucide-react'
+import { Calendar, User, Building2, Wallet, CheckCircle2, Circle } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, SalaryRecord } from '../types'
-import { calcOrderTotals } from '../utils/formula'
+import { calcOrderTotals, evalFormula } from '../utils/formula'
 import { api } from '../api'
 
 export type ReportSubTab = 'monthly' | 'byClient' | 'byContractor' | 'salary'
@@ -34,7 +34,6 @@ interface SalaryPreset {
   contractorPayerAdjs?: ContractorPayerAdj[]
 }
 
-
 interface ReportsTabProps {
   orders: Order[]
   clients: Client[]
@@ -54,21 +53,65 @@ export default function ReportsTab({
   onUpdateOrder,
   onLogHistory
 }: ReportsTabProps) {
-  const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('monthly')
-  const [selectedClientId, setSelectedClientId] = useState<string>('')
-  const [selectedContractorId, setSelectedContractorId] = useState<string>('')
+  // Load saved report filter state from localStorage for seamless tab switching
+  const getSavedReportFilters = () => {
+    try {
+      const saved = localStorage.getItem('crm_reports_filters_state')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return {}
+  }
+
+  const savedState = useMemo(() => getSavedReportFilters(), [])
+
+  const [reportSubTab, setReportSubTab] = useState<ReportSubTab>(() => {
+    return savedState.reportSubTab || 'monthly'
+  })
+  const [selectedClientId, setSelectedClientId] = useState<string>(() => {
+    return savedState.selectedClientId || ''
+  })
+  const [selectedContractorId, setSelectedContractorId] = useState<string>(() => {
+    return savedState.selectedContractorId || ''
+  })
 
   // Report Period Filters
-  const [repMonth, setRepMonth] = useState<string>(selectedMonth)
-  const [dateFrom, setDateFrom] = useState<string>('')
-  const [dateTo, setDateTo] = useState<string>('')
+  const [repMonth, setRepMonth] = useState<string>(() => {
+    return savedState.repMonth || selectedMonth
+  })
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    return savedState.dateFrom || ''
+  })
+  const [dateTo, setDateTo] = useState<string>(() => {
+    return savedState.dateTo || ''
+  })
+  const [reconciledFilter, setReconciledFilter] = useState<'all' | 'reconciled' | 'unreconciled'>(() => {
+    return savedState.reconciledFilter || 'all'
+  })
+
+  // Save report filter states to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'crm_reports_filters_state',
+        JSON.stringify({
+          reportSubTab,
+          selectedClientId,
+          selectedContractorId,
+          repMonth,
+          dateFrom,
+          dateTo,
+          reconciledFilter
+        })
+      )
+    } catch {}
+  }, [reportSubTab, selectedClientId, selectedContractorId, repMonth, dateFrom, dateTo, reconciledFilter])
 
   // Salary Percentage & Adjustments state
   const [salaryPercent, setSalaryPercent] = useState<number>(60)
   const [payerAdjs, setPayerAdjs] = useState<PayerAdj[]>([])
   const [managerWorkAdjs, setManagerWorkAdjs] = useState<ManagerWorkAdj[]>([])
   const [contractorPayerAdjs, setContractorPayerAdjs] = useState<ContractorPayerAdj[]>([])
-  
+
   // Salary DB Records & Presets state
   const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([])
   const [presets, setPresets] = useState<SalaryPreset[]>(() => {
@@ -102,75 +145,65 @@ export default function ReportsTab({
     } catch {}
   }, [presets])
 
-  // Orders filtered strictly by Month for Salary tab
+  // Filter Orders for Monthly & Period Reports
+  const periodOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (dateFrom || dateTo) {
+        if (dateFrom && o.date && o.date < dateFrom) return false
+        if (dateTo && o.date && o.date > dateTo) return false
+      } else if (repMonth && o.date && !o.date.startsWith(repMonth)) {
+        return false
+      }
+      return true
+    })
+  }, [orders, repMonth, dateFrom, dateTo])
+
+  // Month-specific orders for Salary calculations
   const monthOrders = useMemo(() => {
     return orders.filter(o => o.date && o.date.startsWith(repMonth))
   }, [orders, repMonth])
 
-  // Helper: Auto-calculate monthly sum received on a Payer account (strictly calculated)
+  // Helper functions for Payer/Contractor Sums
   const getMonthlyPayerSum = (payerId: string) => {
-    let sum = 0
-    monthOrders.forEach(o => {
-      if (o.paymentReceiverId === payerId) {
-        sum += Number(o.saleAmount) || 0
-      }
-    })
-    return Math.round(sum)
+    return monthOrders
+      .filter(o => o.paymentReceiverId === payerId && o.paymentReceived)
+      .reduce((sum, o) => sum + (Number(o.saleAmount) || 0), 0)
   }
 
-  // Helper: Auto-calculate monthly sum of work performed by a Contractor/Manager (strictly calculated)
   const getMonthlyContractorSum = (contractorId: string) => {
-    let sum = 0
+    let total = 0
     monthOrders.forEach(o => {
-      (o.contractors || []).forEach(cr => {
-        if (cr.contractorId === contractorId) {
-          sum += Number(cr.costValue) || 0
-        }
+      ;(o.contractors || []).forEach(c => {
+        if (c.contractorId === contractorId) total += Number(c.costValue) || 0
       })
     })
-    return Math.round(sum)
+    return total
   }
 
-  // Helper: Auto-calculate monthly sum of payments to contractors from a Payer account
   const getMonthlyContractorPayerSum = (payerId: string) => {
-    let sum = 0
+    let total = 0
     monthOrders.forEach(o => {
-      (o.contractors || []).forEach(cr => {
-        if (cr.payerId === payerId) {
-          sum += Number(cr.costValue) || 0
-        }
+      ;(o.contractors || []).forEach(c => {
+        if (c.payerId === payerId && c.paid) total += Number(c.costValue) || 0
       })
     })
-    return Math.round(sum)
+    return total
   }
 
-  // Orders filtered by period for other reports
-  const periodOrders = useMemo(() => {
-    return orders.filter(o => {
-      if (!o.date) return false
-      if (dateFrom || dateTo) {
-        if (dateFrom && o.date < dateFrom) return false
-        if (dateTo && o.date > dateTo) return false
-        return true
-      }
-      return o.date.startsWith(repMonth)
-    })
-  }, [orders, repMonth, dateFrom, dateTo])
-
-  // Monthly stats & profit
+  // Monthly Report Totals
   const monthlyStats = useMemo(() => {
     let totalSale = 0
     let totalCosts = 0
-    monthOrders.forEach(o => {
+    let totalProfit = 0
+    periodOrders.forEach(o => {
       const t = calcOrderTotals(o)
-      totalSale += Number(o.saleAmount) || 0
+      totalSale += t.sale
       totalCosts += t.costs
+      totalProfit += t.profit
     })
-    const totalProfit = totalSale - totalCosts
-    const avgRent = totalSale ? (totalProfit / totalSale) * 100 : 0
-    const baseSalary = totalProfit * (salaryPercent / 100)
-    return { count: monthOrders.length, totalSale, totalCosts, totalProfit, avgRent, baseSalary }
-  }, [monthOrders, salaryPercent])
+    const baseSalary = Math.round(totalProfit * (salaryPercent / 100))
+    return { count: periodOrders.length, totalSale, totalCosts, totalProfit, baseSalary }
+  }, [periodOrders, salaryPercent])
 
   // Client Report Data & Totals
   const clientReportOrders = useMemo(() => {
@@ -180,21 +213,38 @@ export default function ReportsTab({
   const clientTotals = useMemo(() => {
     let totalSale = 0
     let totalCosts = 0
+    let totalProfit = 0
     clientReportOrders.forEach(o => {
       const t = calcOrderTotals(o)
-      totalSale += Number(o.saleAmount) || 0
+      totalSale += t.sale
       totalCosts += t.costs
+      totalProfit += t.profit
     })
-    const totalProfit = totalSale - totalCosts
-    const avgRent = totalSale ? (totalProfit / totalSale) * 100 : 0
+    const avgRent = totalSale > 0 ? (totalProfit / totalSale) * 100 : 0
     return { totalSale, totalCosts, totalProfit, avgRent }
   }, [clientReportOrders])
 
-  // Contractor Report Data & Totals
-  const contractorReportRows = useMemo(() => {
-    return periodOrders.flatMap(o => (o.contractors || []).map(cr => ({ order: o, cr })))
+  // Contractor Report Data & Filtered Rows
+  const contractorReportAllRows = useMemo(() => {
+    return periodOrders
+      .flatMap(o => (o.contractors || []).map(cr => ({ order: o, cr })))
       .filter(x => !selectedContractorId || x.cr.contractorId === selectedContractorId)
   }, [periodOrders, selectedContractorId])
+
+  const contractorReportRows = useMemo(() => {
+    return contractorReportAllRows.filter(x => {
+      if (reconciledFilter === 'reconciled') return !!x.cr.reconciled
+      if (reconciledFilter === 'unreconciled') return !x.cr.reconciled
+      return true
+    })
+  }, [contractorReportAllRows, reconciledFilter])
+
+  const reconciledCounts = useMemo(() => {
+    const all = contractorReportAllRows.length
+    const reconciled = contractorReportAllRows.filter(x => x.cr.reconciled).length
+    const unreconciled = all - reconciled
+    return { all, reconciled, unreconciled }
+  }, [contractorReportAllRows])
 
   const contractorTotals = useMemo(() => {
     let totalCost = 0
@@ -209,7 +259,7 @@ export default function ReportsTab({
     return { totalCost, paidCost, reconciledCost, unpaidBalance }
   }, [contractorReportRows])
 
-  // Strictly Calculated Totals for Payer, Manager, and Contractor-Payer Adjustments
+  // Strictly Calculated Totals for Salary Adjustments
   const salaryPayerTotal = useMemo(() => {
     return payerAdjs.reduce((acc, curr) => {
       const val = getMonthlyPayerSum(curr.payerId)
@@ -258,7 +308,6 @@ export default function ReportsTab({
     setManagerWorkAdjs(p.managerWorkAdjs || [])
     setContractorPayerAdjs(p.contractorPayerAdjs || [])
   }
-
 
   // Save Salary Record to DB
   const handleCloseSalaryPeriod = async () => {
@@ -318,35 +367,29 @@ export default function ReportsTab({
         </button>
 
         {/* Report Period Filter */}
-        <div className="ml-auto flex items-center gap-2 bg-white px-2.5 py-1 rounded border border-[#b8bdc5]">
-          <span className="text-[11px] font-bold text-[#333740]">Месяц расчёта:</span>
+        <div className="ml-auto flex items-center gap-1.5 text-xs">
+          <label className="font-bold text-[#1c1d1f]">Месяц:</label>
           <input
             type="month"
             value={repMonth}
-            onChange={e => {
-              setRepMonth(e.target.value)
-              setDateFrom('')
-              setDateTo('')
-            }}
-            className="border border-[#b8bdc5] rounded px-1.5 py-0.5 text-xs outline-none bg-[#fffdf0] font-bold"
+            onChange={e => { setRepMonth(e.target.value); setDateFrom(''); setDateTo(''); }}
+            className="border border-[#b8bdc5] rounded p-0.5 text-xs outline-none bg-white font-semibold"
           />
-
-          {/* Date range inputs only for general reports, hidden for Salary tab */}
           {reportSubTab !== 'salary' && (
             <>
-              <span className="text-[11px] font-bold text-[#333740] ml-1">Дата с:</span>
+              <span className="font-bold text-[#1c1d1f] ml-1">Дата с:</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={e => setDateFrom(e.target.value)}
-                className="border border-[#b8bdc5] rounded px-1 py-0.5 text-xs outline-none bg-[#fffdf0]"
+                className="border border-[#b8bdc5] rounded p-0.5 text-xs outline-none bg-white"
               />
-              <span className="text-[11px] font-bold text-[#333740]">по:</span>
+              <span className="font-bold text-[#1c1d1f]">по:</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={e => setDateTo(e.target.value)}
-                className="border border-[#b8bdc5] rounded px-1 py-0.5 text-xs outline-none bg-[#fffdf0]"
+                className="border border-[#b8bdc5] rounded p-0.5 text-xs outline-none bg-white"
               />
               {(dateFrom || dateTo) && (
                 <button
@@ -404,7 +447,7 @@ export default function ReportsTab({
             </select>
           </div>
 
-          <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden">
+          <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden rounded">
             <table className="sheet-grid w-full">
               <thead>
                 <tr>
@@ -456,31 +499,55 @@ export default function ReportsTab({
         </div>
       )}
 
-      {/* 3. By Contractor Report */}
+      {/* 3. By Contractor Report (Interactive Reconciliation & Amounts) */}
       {reportSubTab === 'byContractor' && (
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 bg-[#f0f2f5] p-2 rounded border border-[#b8bdc5]">
-            <span className="text-xs font-bold text-[#333740]">Фильтр Подрядчик:</span>
-            <select
-              value={selectedContractorId}
-              onChange={e => setSelectedContractorId(e.target.value)}
-              className="border border-[#b8bdc5] rounded p-1 text-xs outline-none bg-white font-medium"
-            >
-              <option value="">-- Все подрядчики --</option>
-              {contractors.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-            </select>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-[#f0f2f5] p-2 rounded border border-[#b8bdc5]">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#333740]">Фильтр Подрядчик:</span>
+              <select
+                value={selectedContractorId}
+                onChange={e => setSelectedContractorId(e.target.value)}
+                className="border border-[#b8bdc5] rounded p-1 text-xs outline-none bg-white font-semibold"
+              >
+                <option value="">-- Все подрядчики --</option>
+                {contractors.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+              </select>
+            </div>
+
+            {/* Reconciliation Filter Buttons */}
+            <div className="flex items-center gap-1 bg-[#d9dce1] p-0.5 rounded border border-[#b8bdc5]">
+              <button
+                className={`px-2.5 py-0.5 text-xs rounded font-semibold cursor-pointer ${reconciledFilter === 'all' ? 'bg-[#ffcc00] text-[#1c1d1f] shadow-2xs border border-[#d9a800]' : 'text-[#44474e]'}`}
+                onClick={() => setReconciledFilter('all')}
+              >
+                Все ({reconciledCounts.all})
+              </button>
+              <button
+                className={`px-2.5 py-0.5 text-xs rounded font-semibold cursor-pointer ${reconciledFilter === 'reconciled' ? 'bg-[#ffcc00] text-[#1c1d1f] shadow-2xs border border-[#d9a800]' : 'text-[#44474e]'}`}
+                onClick={() => setReconciledFilter('reconciled')}
+              >
+                ✓ Сверено ({reconciledCounts.reconciled})
+              </button>
+              <button
+                className={`px-2.5 py-0.5 text-xs rounded font-semibold cursor-pointer ${reconciledFilter === 'unreconciled' ? 'bg-[#ffcc00] text-[#1c1d1f] shadow-2xs border border-[#d9a800]' : 'text-[#44474e]'}`}
+                onClick={() => setReconciledFilter('unreconciled')}
+              >
+                ⏳ Не сверено ({reconciledCounts.unreconciled})
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden">
+          <div className="bg-white border border-[#b8bdc5] shadow-2xs overflow-hidden rounded">
             <table className="sheet-grid w-full">
               <thead>
                 <tr>
                   <th className="sheet-header" style={{ width: 140 }}>Заказ # / Дата</th>
                   <th className="sheet-header" style={{ width: 180 }}>Подрядчик</th>
                   <th className="sheet-header">Содержание работ</th>
-                  <th className="sheet-header" style={{ width: 120 }}>Стоимость работ</th>
-                  <th className="sheet-header" style={{ width: 80 }}>Оплачено</th>
-                  <th className="sheet-header" style={{ width: 80 }}>Сверка</th>
+                  <th className="sheet-header" style={{ width: 130 }}>Стоимость/Формула</th>
+                  <th className="sheet-header" style={{ width: 70 }}>Оплачено</th>
+                  <th className="sheet-header" style={{ width: 75 }}>Сверка</th>
                   <th className="sheet-header" style={{ width: 140 }}>Плательщик</th>
                 </tr>
               </thead>
@@ -488,7 +555,7 @@ export default function ReportsTab({
                 {contractorReportRows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
-                      Нет данных за выбранный период
+                      Нет данных за выбранный период по выбранному фильтру
                     </td>
                   </tr>
                 ) : (
@@ -500,34 +567,68 @@ export default function ReportsTab({
                         <td className="sheet-cell font-mono font-bold">#{item.order.id.slice(0, 6)} ({item.order.date})</td>
                         <td className="sheet-cell font-bold">{coName}</td>
                         <td className="sheet-cell">{item.cr.description || '—'}</td>
-                        <td className="sheet-cell text-right font-bold text-[#9a3412]">{item.cr.costValue.toLocaleString('ru-RU')} ₽</td>
-                        
+
+                        {/* Interactive Cost / Formula Editing directly from Report */}
+                        <td className="sheet-cell p-0">
+                          <input
+                            type="text"
+                            value={item.cr.costFormula || (item.cr.costValue ? String(item.cr.costValue) : '')}
+                            onChange={e => {
+                              if (!onUpdateOrder) return
+                              const val = e.target.value
+                              const calcVal = evalFormula(val)
+                              const updatedCRs = (item.order.contractors || []).map(c =>
+                                c.id === item.cr.id ? { ...c, costFormula: val, costValue: calcVal } : c
+                              )
+                              onUpdateOrder(
+                                { ...item.order, contractors: updatedCRs },
+                                `Изменение стоимости подрядчика в отчете сверки заказа #${item.order.id}`
+                              )
+                            }}
+                            className="w-full h-full px-1 text-xs text-right font-bold outline-none bg-transparent text-[#9a3412] font-mono"
+                            placeholder="0"
+                          />
+                        </td>
+
+                        {/* Paid Checkbox */}
                         <td className="sheet-cell text-center font-bold">
                           <input
                             type="checkbox"
                             checked={!!item.cr.paid}
                             onChange={e => {
                               if (!onUpdateOrder) return
-                              const updatedCRs = item.order.contractors.map(c => c.id === item.cr.id ? { ...c, paid: e.target.checked } : c)
-                              onUpdateOrder({ ...item.order, contractors: updatedCRs }, `Смена оплаты работ подрядчика в заказе #${item.order.id}`)
+                              const updatedCRs = (item.order.contractors || []).map(c =>
+                                c.id === item.cr.id ? { ...c, paid: e.target.checked } : c
+                              )
+                              onUpdateOrder(
+                                { ...item.order, contractors: updatedCRs },
+                                `Смена оплаты работ подрядчика в заказе #${item.order.id}`
+                              )
                             }}
                             className="accent-[#ffcc00] cursor-pointer"
                           />
                         </td>
 
+                        {/* Reconciled Checkbox */}
                         <td className="sheet-cell text-center font-bold">
                           <input
                             type="checkbox"
                             checked={!!item.cr.reconciled}
                             onChange={e => {
                               if (!onUpdateOrder) return
-                              const updatedCRs = item.order.contractors.map(c => c.id === item.cr.id ? { ...c, reconciled: e.target.checked } : c)
-                              onUpdateOrder({ ...item.order, contractors: updatedCRs }, `Смена сверки работ подрядчика в заказе #${item.order.id}`)
+                              const updatedCRs = (item.order.contractors || []).map(c =>
+                                c.id === item.cr.id ? { ...c, reconciled: e.target.checked } : c
+                              )
+                              onUpdateOrder(
+                                { ...item.order, contractors: updatedCRs },
+                                `Смена статуса сверки подрядчика в заказе #${item.order.id}`
+                              )
                             }}
                             className="accent-[#ffcc00] cursor-pointer"
                           />
                         </td>
-                        <td className="sheet-cell font-medium">{pName}</td>
+
+                        <td className="sheet-cell font-medium text-slate-700">{pName}</td>
                       </tr>
                     )
                   })
@@ -537,9 +638,9 @@ export default function ReportsTab({
                 <tr className="bg-[#f0f2f5] border-t-2 border-[#b8bdc5] font-extrabold text-xs">
                   <td colSpan={3} className="sheet-cell text-right uppercase font-bold text-[#1c1d1f]">ИТОГО ПО ПОДРЯДЧИКАМ:</td>
                   <td className="sheet-cell text-right text-[#9a3412] font-black">{contractorTotals.totalCost.toLocaleString('ru-RU')} ₽</td>
-                  <td className="sheet-cell text-center text-green-700 font-bold">{contractorTotals.paidCost.toLocaleString('ru-RU')} ₽</td>
-                  <td className="sheet-cell text-center text-blue-700 font-bold">{contractorTotals.reconciledCost.toLocaleString('ru-RU')} ₽</td>
-                  <td className="sheet-cell text-right text-red-700 font-bold">Долг: {contractorTotals.unpaidBalance.toLocaleString('ru-RU')} ₽</td>
+                  <td className="sheet-cell text-center font-bold text-[#15803d]">Опл: {contractorTotals.paidCost.toLocaleString('ru-RU')} ₽</td>
+                  <td className="sheet-cell text-center font-bold text-amber-800">Сверено: {contractorTotals.reconciledCost.toLocaleString('ru-RU')} ₽</td>
+                  <td className="sheet-cell text-right text-red-700 font-extrabold">Долг: {contractorTotals.unpaidBalance.toLocaleString('ru-RU')} ₽</td>
                 </tr>
               </tfoot>
             </table>
@@ -547,359 +648,114 @@ export default function ReportsTab({
         </div>
       )}
 
-      {/* 4. Advanced Salary Calculation strictly PER MONTH */}
+      {/* 4. Salary Report */}
       {reportSubTab === 'salary' && (
         <div className="flex flex-col gap-3">
-          {/* Header Controls & Percentage & Presets */}
-          <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
-            <div className="flex justify-between items-center border-b border-[#b8bdc5] pb-2">
-              <div className="flex items-center gap-3">
-                <h3 className="font-bold text-xs text-[#1c1d1f] uppercase tracking-wide">
-                  Зарплатный Расчёт (Месяц: {repMonth})
-                </h3>
-                <div className="flex items-center gap-1 bg-[#fff5a8] px-2 py-0.5 rounded border border-[#e5ba00]">
-                  <span className="text-xs font-bold text-[#1c1d1f]">Процент от прибыли:</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={salaryPercent}
-                    onChange={e => setSalaryPercent(Number(e.target.value) || 0)}
-                    className="w-14 border border-[#d9a800] rounded px-1 text-xs text-center font-extrabold outline-none bg-white text-[#1c1d1f]"
-                  />
-                  <span className="text-xs font-extrabold text-[#1c1d1f]">%</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#333740]">📋 Шаблоны (Пресеты):</span>
-                <select
-                  onChange={e => e.target.value && handleApplyPreset(e.target.value)}
-                  className="border border-[#b8bdc5] rounded p-1 text-xs outline-none bg-[#fffdf0] font-medium"
-                >
-                  <option value="">-- Выбрать сохранённый шаблон --</option>
-                  {presets.map((p, idx) => (
-                    <option key={idx} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
+          <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#1c1d1f]">Фонд зарплаты (% от прибыли):</span>
+              <input
+                type="number"
+                value={salaryPercent}
+                onChange={e => setSalaryPercent(Number(e.target.value) || 0)}
+                className="w-16 border border-[#b8bdc5] rounded p-1 text-xs outline-none font-bold text-center bg-[#fffdf0]"
+              />
+              <span className="text-xs font-bold text-slate-600">%</span>
             </div>
 
-            {/* Total Profit Summary Banner (Without Order List Table) */}
-            <div className="bg-[#f0fdf4] p-3 rounded border border-[#bbf7d0] flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-[#166534]">Общая валовая прибыль за {repMonth}:</span>
-                <div className="text-xl font-black text-[#15803d]">{monthlyStats.totalProfit.toLocaleString('ru-RU')} ₽</div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold text-slate-600">Количество заказов:</span>
-                <div className="text-lg font-extrabold text-slate-800">{monthlyStats.count} шт</div>
-              </div>
-            </div>
-
-            {/* Save Preset Controls */}
-            <div className="flex items-center gap-2 bg-[#f4f6f8] p-2 rounded border border-[#b8bdc5]">
+            <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Название нового шаблона расчёта..."
+                placeholder="Название шаблона..."
                 value={presetName}
                 onChange={e => setPresetName(e.target.value)}
-                className="border border-[#b8bdc5] rounded px-2 py-1 text-xs outline-none flex-1 bg-white font-medium"
+                className="border border-[#b8bdc5] rounded px-2 py-1 text-xs outline-none w-48 bg-white"
               />
               <button
-                className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] border border-[#d9a800] text-[#1c1d1f] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs"
                 onClick={handleSavePreset}
+                className="bg-[#ffcc00] hover:bg-[#e6b800] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs"
               >
-                💾 Сохранить шаблон
+                Сохранить шаблон
               </button>
+            </div>
+
+            {presets.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="font-bold text-slate-700">Загрузить шаблон:</span>
+                {presets.map(p => (
+                  <button
+                    key={p.name}
+                    onClick={() => handleApplyPreset(p.name)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold cursor-pointer transition"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Salary Summary Cards */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs">
+              <div className="text-[11px] font-bold text-slate-500 uppercase">Базовый ЗП Фонд ({salaryPercent}%)</div>
+              <div className="text-xl font-black text-[#6b21a8] mt-1">{monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs">
+              <div className="text-[11px] font-bold text-slate-500 uppercase">Корректировки по Картам/Счетам</div>
+              <div className="text-xl font-black text-[#1e40af] mt-1">{salaryPayerTotal >= 0 ? `+${salaryPayerTotal.toLocaleString('ru-RU')}` : salaryPayerTotal.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs">
+              <div className="text-[11px] font-bold text-slate-500 uppercase">Собственные работы (Затраты)</div>
+              <div className="text-xl font-black text-[#9a3412] mt-1">+{salaryManagerTotal.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div className="bg-amber-50 p-3 rounded border border-amber-300 shadow-2xs">
+              <div className="text-[11px] font-bold text-amber-900 uppercase">ИТОГО ЗАРПЛАТА К ВЫПЛАТЕ</div>
+              <div className="text-2xl font-black text-amber-950 mt-1">{finalCalculatedSalary.toLocaleString('ru-RU')} ₽</div>
             </div>
           </div>
 
-          {/* Adjustments Steps with STRICTLY READ-ONLY Auto-Calculated Sums */}
-          <div className="grid grid-cols-3 gap-3">
-            {/* Block 1: Payer Adjustments */}
-            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
-              <div className="border-b pb-1.5 flex justify-between items-center">
-                <div>
-                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">1. Поступления по счетам</h4>
-                  <p className="text-[10px] text-slate-500">Суммы счетов за месяц (+ / -)</p>
-                </div>
-                <button
-                  className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
-                  onClick={() => {
-                    const firstPayerId = payers[0]?.id || ''
-                    setPayerAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), payerId: firstPayerId, sign: '+', note: '' }])
-                  }}
-                >
-                  + Счет
-                </button>
-              </div>
-
-              {payerAdjs.length === 0 ? (
-                <div className="text-slate-400 text-xs text-center py-3">Счета не добавлены</div>
-              ) : (
-                payerAdjs.map((adj, idx) => {
-                  const autoCalc = getMonthlyPayerSum(adj.payerId)
-                  const isMinus = adj.sign === '-'
-                  return (
-                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, sign: item.sign === '-' ? '+' : '-' } : item))}
-                        className={`px-1.5 py-0.5 rounded font-black text-xs cursor-pointer border shrink-0 ${
-                          isMinus
-                            ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                        }`}
-                        title="Нажмите для смены знака: + (прибавить) / - (вычесть)"
-                      >
-                        {isMinus ? '-' : '+'}
-                      </button>
-                      <select
-                        value={adj.payerId}
-                        onChange={e => {
-                          const newPayerId = e.target.value
-                          setPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, payerId: newPayerId } : item))
-                        }}
-                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
-                      >
-                        {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                      <div className={`border rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0 ${
-                        isMinus ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-900'
-                      }`}>
-                        {isMinus ? `- ${autoCalc.toLocaleString('ru-RU')} ₽` : `+ ${autoCalc.toLocaleString('ru-RU')} ₽`}
-                      </div>
-                      <button
-                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
-                        onClick={() => setPayerAdjs(prev => prev.filter((_, i) => i !== idx))}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            {/* Block 2: Manager Own Works */}
-            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
-              <div className="border-b pb-1.5 flex justify-between items-center">
-                <div>
-                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">2. Работы менеджера</h4>
-                  <p className="text-[10px] text-slate-500">Работы из таблицы за месяц (+)</p>
-                </div>
-                <button
-                  className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
-                  onClick={() => {
-                    const firstCoId = contractors[0]?.id || ''
-                    setManagerWorkAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), contractorId: firstCoId, note: '' }])
-                  }}
-                >
-                  + Работа
-                </button>
-              </div>
-
-              {managerWorkAdjs.length === 0 ? (
-                <div className="text-slate-400 text-xs text-center py-3">Работы не добавлены</div>
-              ) : (
-                managerWorkAdjs.map((adj, idx) => {
-                  const autoCalc = getMonthlyContractorSum(adj.contractorId)
-                  return (
-                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                      <select
-                        value={adj.contractorId}
-                        onChange={e => {
-                          const newCoId = e.target.value
-                          setManagerWorkAdjs(prev => prev.map((item, i) => i === idx ? { ...item, contractorId: newCoId } : item))
-                        }}
-                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
-                      >
-                        {contractors.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
-                      </select>
-                      <div className="bg-orange-50 border border-orange-200 text-orange-900 rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0">
-                        + {autoCalc.toLocaleString('ru-RU')} ₽
-                      </div>
-                      <button
-                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
-                        onClick={() => setManagerWorkAdjs(prev => prev.filter((_, i) => i !== idx))}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            {/* Block 3: Contractor Payments via Payers */}
-            <div className="bg-white p-3 rounded border border-[#b8bdc5] shadow-2xs space-y-3">
-              <div className="border-b pb-1.5 flex justify-between items-center">
-                <div>
-                  <h4 className="font-bold text-xs text-[#1c1d1f] uppercase">3. Выплаты подрядчикам</h4>
-                  <p className="text-[10px] text-slate-500">Оплаты подрядчикам со счетов (+ / -)</p>
-                </div>
-                <button
-                  className="bg-slate-100 hover:bg-slate-200 text-[#1c1d1f] border border-[#b8bdc5] rounded px-2 py-0.5 text-xs font-bold cursor-pointer"
-                  onClick={() => {
-                    const firstPayerId = payers[0]?.id || ''
-                    setContractorPayerAdjs(prev => [...prev, { id: Math.random().toString(36).slice(2, 6), payerId: firstPayerId, sign: '+', note: '' }])
-                  }}
-                >
-                  + Счет
-                </button>
-              </div>
-
-              {contractorPayerAdjs.length === 0 ? (
-                <div className="text-slate-400 text-xs text-center py-3">Оплаты по счетам не добавлены</div>
-              ) : (
-                contractorPayerAdjs.map((adj, idx) => {
-                  const autoCalc = getMonthlyContractorPayerSum(adj.payerId)
-                  const isMinus = adj.sign === '-'
-                  return (
-                    <div key={adj.id} className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setContractorPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, sign: item.sign === '-' ? '+' : '-' } : item))}
-                        className={`px-1.5 py-0.5 rounded font-black text-xs cursor-pointer border shrink-0 ${
-                          isMinus
-                            ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                        }`}
-                        title="Нажмите для смены знака: + (прибавить) / - (вычесть)"
-                      >
-                        {isMinus ? '-' : '+'}
-                      </button>
-                      <select
-                        value={adj.payerId}
-                        onChange={e => {
-                          const newPayerId = e.target.value
-                          setContractorPayerAdjs(prev => prev.map((item, i) => i === idx ? { ...item, payerId: newPayerId } : item))
-                        }}
-                        className="border border-[#b8bdc5] rounded p-1 text-xs bg-white font-bold flex-1 min-w-0"
-                      >
-                        {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                      <div className={`border rounded px-2 py-1 font-black text-xs min-w-[85px] text-right shrink-0 ${
-                        isMinus ? 'bg-red-50 border-red-200 text-red-700' : 'bg-purple-50 border-purple-200 text-purple-900'
-                      }`}>
-                        {isMinus ? `- ${autoCalc.toLocaleString('ru-RU')} ₽` : `+ ${autoCalc.toLocaleString('ru-RU')} ₽`}
-                      </div>
-                      <button
-                        className="text-red-600 font-bold px-1 text-sm cursor-pointer shrink-0"
-                        onClick={() => setContractorPayerAdjs(prev => prev.filter((_, i) => i !== idx))}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={handleCloseSalaryPeriod}
+              className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-2 text-xs font-bold cursor-pointer shadow-xs transition"
+            >
+              Провести ведомость за {repMonth} в БД
+            </button>
           </div>
 
-          {/* Final Summary Card */}
-          <div className="bg-[#fffef2] p-4 border-2 border-[#ffcc00] rounded shadow-sm space-y-2">
-            <h4 className="font-extrabold text-xs text-[#1c1d1f] uppercase tracking-wide">
-              ИТОГОВЫЙ РАСЧЕТ ЗАРПЛАТНОЙ ВЕДОМОСТИ ({repMonth})
-            </h4>
-            <div className="grid grid-cols-5 gap-2 text-xs border-t border-[#e6ba00] pt-2">
-              <div>
-                <span className="text-slate-600">Базовый Фонд ({salaryPercent}%):</span>
-                <div className="font-bold text-slate-800 text-sm">{monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽</div>
-              </div>
-              <div>
-                <span className="text-slate-600">Поступления счетов (+/-):</span>
-                <div className={`font-bold text-sm ${salaryPayerTotal < 0 ? 'text-red-700' : 'text-blue-800'}`}>
-                  {salaryPayerTotal.toLocaleString('ru-RU')} ₽
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-600">Работы менеджера (+):</span>
-                <div className="font-bold text-orange-800 text-sm">{salaryManagerTotal.toLocaleString('ru-RU')} ₽</div>
-              </div>
-              <div>
-                <span className="text-slate-600">Оплаты подрядчикам (+/-):</span>
-                <div className={`font-bold text-sm ${salaryContractorPayerTotal < 0 ? 'text-red-700' : 'text-purple-800'}`}>
-                  {salaryContractorPayerTotal.toLocaleString('ru-RU')} ₽
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-600 font-bold uppercase">ИТОГО К ВЫПЛАТЕ:</span>
-                <div className="font-black text-green-700 text-lg">{finalCalculatedSalary.toLocaleString('ru-RU')} ₽</div>
-              </div>
-            </div>
-
-
-            <div className="pt-2 flex justify-end">
-              <button
-                className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1.5 text-xs font-extrabold cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1"
-                onClick={handleCloseSalaryPeriod}
-              >
-                <Lock className="w-3.5 h-3.5" /> Провести и сохранить ведомость ЗП
-              </button>
-            </div>
-          </div>
-
-          {/* History Table of Salary Records in DB */}
-          <div className="bg-white border border-[#b8bdc5] rounded shadow-2xs overflow-hidden mt-2">
-            <div className="bg-[#f0f2f5] px-3 py-2 border-b border-[#b8bdc5] font-bold text-xs text-[#1c1d1f] flex justify-between items-center">
-              <span>📋 История проведенных ведомостей ЗП в базе данных Turso ({salaryRecords.length})</span>
-              <button
-                onClick={loadSalaryRecords}
-                className="text-[11px] bg-white border border-[#b8bdc5] rounded px-2 py-0.5 font-bold hover:bg-slate-100 cursor-pointer"
-              >
-                ↻ Обновить
-              </button>
-            </div>
-            <table className="sheet-grid w-full">
-              <thead>
-                <tr>
-                  <th className="sheet-header" style={{ width: 40 }}>№</th>
-                  <th className="sheet-header" style={{ width: 100 }}>Месяц</th>
-                  <th className="sheet-header" style={{ width: 160 }}>Дата проведения</th>
-                  <th className="sheet-header" style={{ width: 90 }}>Процент %</th>
-                  <th className="sheet-header" style={{ width: 120 }}>Базовый фонд</th>
-                  <th className="sheet-header font-bold" style={{ width: 140 }}>Итого к выплате</th>
-                  <th className="sheet-header">Примечание / Состояние</th>
-                  <th className="sheet-header" style={{ width: 45 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {salaryRecords.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-6 text-slate-400 text-xs">
-                      Проведенных ведомостей ЗП пока нет. Нажмите <b>🔒 Провести и сохранить ведомость ЗП</b>.
-                    </td>
-                  </tr>
-                ) : (
-                  salaryRecords.map((sr, idx) => (
-                    <tr key={sr.id} className="text-xs hover:bg-[#fff9d6] border-b border-[#c9ced6]">
-                      <td className="sheet-cell text-center text-slate-500 font-bold bg-[#f4f6f8]">{idx + 1}</td>
-                      <td className="sheet-cell font-mono font-bold text-[#1c1d1f]">{sr.month}</td>
-                      <td className="sheet-cell text-slate-600 font-mono">{sr.closedAt || '—'}</td>
-                      <td className="sheet-cell text-center font-bold">{sr.salaryPercent}%</td>
-                      <td className="sheet-cell text-right font-medium">{sr.baseSalary?.toLocaleString('ru-RU')} ₽</td>
-                      <td className="sheet-cell text-right font-black text-green-700">{sr.finalSalary?.toLocaleString('ru-RU')} ₽</td>
-                      <td className="sheet-cell text-slate-700 font-medium">{sr.note || 'Проведено ✓'}</td>
-                      <td className="sheet-cell text-center p-0">
-                        <button
-                          className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
-                          title="Удалить ведомость из базы"
-                          onClick={async () => {
-                            if (!window.confirm(`Удалить ведомость за ${sr.month}?`)) return
-                            fetch(`/api/salary?id=${sr.id}`, { method: 'DELETE' }).then(loadSalaryRecords)
-                          }}
-                        >
-                          🗑
-                        </button>
-                      </td>
+          {/* Salary Records History */}
+          {salaryRecords.length > 0 && (
+            <div className="mt-4 bg-white border border-[#b8bdc5] rounded shadow-2xs p-3">
+              <h3 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide mb-2">
+                История проведенных ведомостей ЗП
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="sheet-grid w-full">
+                  <thead>
+                    <tr>
+                      <th className="sheet-header" style={{ width: 100 }}>Месяц</th>
+                      <th className="sheet-header" style={{ width: 150 }}>Дата проведения</th>
+                      <th className="sheet-header" style={{ width: 120 }}>Базовая ЗП</th>
+                      <th className="sheet-header" style={{ width: 120 }}>Итого выплата</th>
+                      <th className="sheet-header">Примечание</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {salaryRecords.map(rec => (
+                      <tr key={rec.id} className="text-xs border-b border-[#c9ced6] hover:bg-[#fff9d6]">
+                        <td className="sheet-cell font-mono font-bold">{rec.month}</td>
+                        <td className="sheet-cell font-mono">{rec.closedAt}</td>
+                        <td className="sheet-cell text-right font-semibold">{rec.baseSalary.toLocaleString('ru-RU')} ₽</td>
+                        <td className="sheet-cell text-right font-black text-[#15803d]">{rec.finalSalary.toLocaleString('ru-RU')} ₽</td>
+                        <td className="sheet-cell text-slate-700">{rec.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
