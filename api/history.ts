@@ -21,7 +21,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     if (!db) return res.status(200).json([])
 
     if (req.method === 'GET') {
-      const r = await db.execute('SELECT * FROM history ORDER BY timestamp DESC LIMIT 50')
+      const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 500)
+      const r = await db.execute({
+        sql: `SELECT * FROM history ORDER BY timestamp DESC LIMIT ?`,
+        args: [limit]
+      })
       const rows = r.rows.map((row: any) => {
         let parsedSnapshot = row.snapshot
         if (typeof row.snapshot === 'string') {

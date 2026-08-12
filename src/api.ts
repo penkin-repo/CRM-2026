@@ -67,7 +67,8 @@ export const api = {
   deleteOrder: async (id:string) => { clearApiCache(); return fetch(`/api/orders?id=${id}`,{method:'DELETE'}).then(r=>r.json()) },
 
   // history
-  fetchHistory: () => cachedGet<any[]>('/api/history'),
+  fetchHistory: (limit?: number) => cachedGet<any[]>(`/api/history${limit ? `?limit=${limit}` : ''}`),
+
   saveHistory: async (h:any) => { clearApiCache(); return fetch('/api/history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(h)}).then(r=>r.json()) },
   clearHistory: async () => { clearApiCache(); return fetch('/api/history',{method:'DELETE'}).then(r=>r.json()) },
 

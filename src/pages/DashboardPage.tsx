@@ -363,6 +363,15 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     reader.readAsText(file)
   }
 
+  const handleLoadMoreHistory = async (limit: number) => {
+    try {
+      const data = await api.fetchHistory(limit)
+      if (Array.isArray(data)) setHistory(data)
+    } catch (e) {
+      console.error('Error fetching history:', e)
+    }
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-48px)] bg-[#e5e8ed]">
       {/* Top Navigation Bar */}
@@ -402,7 +411,6 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           onUpdateOrder={handleUpdateOrder}
           onConfirmAiOrder={handleConfirmAiOrder}
         />
-
       )}
 
       {activeTab === 'clients' && (
@@ -452,6 +460,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
             api.clearHistory().catch(() => {})
           }}
           onRestoreSnapshot={handleRestoreSnapshot}
+          onLoadMoreHistory={handleLoadMoreHistory}
         />
       )}
 
