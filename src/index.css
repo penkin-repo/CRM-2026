@@ -58,9 +58,23 @@
 }
 
 /* Status Row Styling (Light Mode) */
+tr.status-active {
+  opacity: 1;
+}
+
 tr.status-active td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
   background-color: #fffef2;
   color: #1e293b;
+}
+
+/* Completed Rows: Translucent / Dimmed */
+tr.status-completed {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+tr.status-completed:hover {
+  opacity: 0.95;
 }
 
 tr.status-completed td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
@@ -82,6 +96,7 @@ td.sheet-cell:focus-within {
   box-shadow: inset 0 0 6px rgba(217, 119, 6, 0.3) !important;
   z-index: 30 !important;
   font-weight: 600 !important;
+  opacity: 1 !important;
 }
 
 /* Custom A29 CRM Scrollbar */
@@ -156,15 +171,41 @@ html.dark .sheet-cell {
   color: #e2e8f0 !important;
 }
 
-/* Override light status row backgrounds in dark mode */
+/* Active Rows in Dark Mode: Bright & Full Opacity */
+html.dark tr.status-active {
+  opacity: 1 !important;
+}
+
 html.dark tr.status-active td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
-  background-color: #1c1f26 !important;
-  color: #f1f5f9 !important;
+  background-color: #1c1f28 !important;
+  color: #f8fafc !important;
+}
+
+html.dark tr.status-active .sheet-cell input,
+html.dark tr.status-active .sheet-cell select,
+html.dark tr.status-active .sheet-cell div {
+  color: #f8fafc !important;
+}
+
+/* Completed Rows in Dark Mode: Translucent (45% Opacity) & Muted */
+html.dark tr.status-completed {
+  opacity: 0.45 !important;
+  transition: opacity 0.15s ease;
+}
+
+html.dark tr.status-completed:hover {
+  opacity: 0.9 !important;
 }
 
 html.dark tr.status-completed td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
-  background-color: #14171f !important;
-  color: #94a3b8 !important;
+  background-color: #12141a !important;
+  color: #64748b !important;
+}
+
+html.dark tr.status-completed .sheet-cell input,
+html.dark tr.status-completed .sheet-cell select,
+html.dark tr.status-completed .sheet-cell div {
+  color: #64748b !important;
 }
 
 html.dark tr.sheet-row:hover td.sheet-cell,
@@ -173,14 +214,8 @@ html.dark tr.hover\:bg-\[\#fff9d6\]:hover td.sheet-cell {
 }
 
 /* Cell inputs, selects & text in dark mode */
-html.dark .sheet-cell input,
-html.dark .sheet-cell select,
-html.dark .sheet-cell div {
-  color: #f1f5f9 !important;
-}
-
 html.dark .sheet-cell select option {
-  background-color: #1c1f26 !important;
+  background-color: #1c1e24 !important;
   color: #f1f5f9 !important;
 }
 
@@ -194,6 +229,7 @@ html.dark td.sheet-cell:focus-within {
   outline: 2.5px solid #f59e0b !important;
   background-color: #332611 !important;
   color: #fef08a !important;
+  opacity: 1 !important;
 }
 
 html.dark td.sheet-cell-active input,
