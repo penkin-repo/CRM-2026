@@ -941,11 +941,12 @@ export default function OrdersTab({
       {/* AI Assistant Modal */}
       {isAiModalOpen && (
         <AiOrderModal
+          isOpen={isAiModalOpen}
           clients={clients}
           contractors={contractors}
           payers={payers}
           onClose={() => setIsAiModalOpen(false)}
-          onConfirm={onConfirmAiOrder}
+          onConfirmOrder={onConfirmAiOrder}
         />
       )}
     </div>
