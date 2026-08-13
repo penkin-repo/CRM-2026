@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { User as UserIcon, Sun, Moon, LogOut, Menu, X } from 'lucide-react'
 import LoginScreen from './components/LoginScreen'
 import DashboardPage from './pages/DashboardPage'
+import { api, clearAuthToken } from './api'
 import type { User } from './types'
 import { APP_VERSION, APP_BUILD } from './version'
 import './index.css'
@@ -32,6 +33,7 @@ export default function App() {
   }
 
   const handleLogout = () => {
+    clearAuthToken()
     setCurrentUser(null)
     try {
       sessionStorage.removeItem('crm_user')
