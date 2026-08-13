@@ -336,7 +336,7 @@ export default function AiOrderModal({
 
                 <div className="bg-white p-2 rounded border border-slate-200 col-span-2">
                   <span className="text-slate-500 block text-[10px]">Номенклатура (Продукция):</span>
-                  <span className="font-bold text-slate-900">{parsedData.productName || 'Не указано'}</span>
+                  <span className="font-bold text-slate-900 whitespace-pre-line block">{parsedData.productName || 'Не указано'}</span>
                 </div>
 
                 <div className="bg-white p-2 rounded border border-slate-200">
