@@ -137,7 +137,7 @@ export default function OrdersTab({
 
   const isCashPayer = (payerId: string) => {
     const p = payers.find(x => x.id === payerId)
-    return p?.type === 'cash'
+    return p?.type === 'cash' || p?.type === 'card'
   }
 
   // Deep Filter logic (includes searching inside sub-contractor records and fields)

@@ -164,6 +164,11 @@ export default function ReportsTab({
   }, [orders, repMonth])
 
   // Helper functions for Payer/Contractor Sums
+  const isCashPayer = (payerId: string) => {
+    const p = payers.find(x => x.id === payerId)
+    return p?.type === 'cash' || p?.type === 'card'
+  }
+
   const getMonthlyPayerSum = (payerId: string) => {
     return monthOrders
       .filter(o => o.paymentReceiverId === payerId && o.paymentReceived)
@@ -457,8 +462,8 @@ export default function ReportsTab({
                   <th className="sheet-header" style={{ width: 110 }}>Реализация</th>
                   <th className="sheet-header" style={{ width: 100 }}>Затраты</th>
                   <th className="sheet-header" style={{ width: 110 }}>Валовая прибыль</th>
-                  <th className="sheet-header" style={{ width: 100 }}>Счет №</th>
                   <th className="sheet-header" style={{ width: 150 }}>Получатель оплаты</th>
+                  <th className="sheet-header" style={{ width: 100 }}>Счет №</th>
                   <th className="sheet-header" style={{ width: 65 }}>Оплачено</th>
                 </tr>
               </thead>
@@ -473,6 +478,7 @@ export default function ReportsTab({
                   clientReportOrders.map(o => {
                     const t = calcOrderTotals(o)
                     const cName = clients.find(c => c.id === o.clientId)?.name || '—'
+                    const cash = isCashPayer(o.paymentReceiverId)
                     return (
                       <tr key={o.id} className="text-xs hover:bg-[#fff9d6] border-b border-[#c9ced6]">
                         <td className="sheet-cell font-mono">{o.date}</td>
@@ -482,31 +488,20 @@ export default function ReportsTab({
                         <td className="sheet-cell text-right text-[#9a3412] font-medium">{t.costs.toLocaleString('ru-RU')} ₽</td>
                         <td className="sheet-cell text-right font-bold text-[#15803d]">{t.profit.toLocaleString('ru-RU')} ₽</td>
 
-                        {/* Editable Payment Note (Счет №) */}
-                        <td className="sheet-cell p-0">
-                          <input
-                            type="text"
-                            value={o.paymentNote || ''}
-                            onChange={e => {
-                              if (!onUpdateOrder) return
-                              onUpdateOrder(
-                                { ...o, paymentNote: e.target.value },
-                                `Изменение № счета заказа #${o.id} в отчете по контрагенту`
-                              )
-                            }}
-                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
-                            placeholder="№ счета"
-                          />
-                        </td>
-
                         {/* Editable Payment Receiver (Кто получает оплату) */}
                         <td className="sheet-cell p-0">
                           <select
                             value={o.paymentReceiverId || ''}
                             onChange={e => {
                               if (!onUpdateOrder) return
+                              const newPayerId = e.target.value
+                              const isNewCash = isCashPayer(newPayerId)
                               onUpdateOrder(
-                                { ...o, paymentReceiverId: e.target.value },
+                                {
+                                  ...o,
+                                  paymentReceiverId: newPayerId,
+                                  paymentNote: isNewCash ? '' : o.paymentNote
+                                },
                                 `Изменение получателя оплаты заказа #${o.id} в отчете по контрагенту`
                               )
                             }}
@@ -517,6 +512,27 @@ export default function ReportsTab({
                               <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                           </select>
+                        </td>
+
+                        {/* Editable Payment Note (Счет № / Прочерк для наличных и карты менеджера) */}
+                        <td className="sheet-cell p-0">
+                          {cash ? (
+                            <div className="text-center text-slate-400 bg-slate-200/80 h-full flex items-center justify-center font-bold select-none">—</div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={o.paymentNote || ''}
+                              onChange={e => {
+                                if (!onUpdateOrder) return
+                                onUpdateOrder(
+                                  { ...o, paymentNote: e.target.value },
+                                  `Изменение № счета заказа #${o.id} в отчете по контрагенту`
+                                )
+                              }}
+                              className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                              placeholder="№ счета"
+                            />
+                          )}
                         </td>
 
                         {/* Editable Paid Checkbox (Оплачено) */}
