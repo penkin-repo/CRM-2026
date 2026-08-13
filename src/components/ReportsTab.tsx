@@ -451,19 +451,21 @@ export default function ReportsTab({
             <table className="sheet-grid w-full">
               <thead>
                 <tr>
-                  <th className="sheet-header" style={{ width: 90 }}>Дата</th>
-                  <th className="sheet-header" style={{ width: 180 }}>Контрагент</th>
+                  <th className="sheet-header" style={{ width: 85 }}>Дата</th>
+                  <th className="sheet-header" style={{ width: 160 }}>Контрагент</th>
                   <th className="sheet-header">Номенклатура (Продукция)</th>
-                  <th className="sheet-header" style={{ width: 120 }}>Реализация</th>
-                  <th className="sheet-header" style={{ width: 110 }}>Затраты</th>
-                  <th className="sheet-header" style={{ width: 120 }}>Валовая прибыль</th>
-                  <th className="sheet-header" style={{ width: 80 }}>Статус</th>
+                  <th className="sheet-header" style={{ width: 110 }}>Реализация</th>
+                  <th className="sheet-header" style={{ width: 100 }}>Затраты</th>
+                  <th className="sheet-header" style={{ width: 110 }}>Валовая прибыль</th>
+                  <th className="sheet-header" style={{ width: 100 }}>Счет №</th>
+                  <th className="sheet-header" style={{ width: 150 }}>Получатель оплаты</th>
+                  <th className="sheet-header" style={{ width: 65 }}>Оплачено</th>
                 </tr>
               </thead>
               <tbody>
                 {clientReportOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
+                    <td colSpan={9} className="text-center py-6 text-slate-400 text-xs">
                       Нет данных за выбранный период
                     </td>
                   </tr>
@@ -479,7 +481,59 @@ export default function ReportsTab({
                         <td className="sheet-cell text-right font-bold text-[#1e40af]">{o.saleAmount.toLocaleString('ru-RU')} ₽</td>
                         <td className="sheet-cell text-right text-[#9a3412] font-medium">{t.costs.toLocaleString('ru-RU')} ₽</td>
                         <td className="sheet-cell text-right font-bold text-[#15803d]">{t.profit.toLocaleString('ru-RU')} ₽</td>
-                        <td className="sheet-cell text-center font-bold">{o.status}</td>
+
+                        {/* Editable Payment Note (Счет №) */}
+                        <td className="sheet-cell p-0">
+                          <input
+                            type="text"
+                            value={o.paymentNote || ''}
+                            onChange={e => {
+                              if (!onUpdateOrder) return
+                              onUpdateOrder(
+                                { ...o, paymentNote: e.target.value },
+                                `Изменение № счета заказа #${o.id} в отчете по контрагенту`
+                              )
+                            }}
+                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                            placeholder="№ счета"
+                          />
+                        </td>
+
+                        {/* Editable Payment Receiver (Кто получает оплату) */}
+                        <td className="sheet-cell p-0">
+                          <select
+                            value={o.paymentReceiverId || ''}
+                            onChange={e => {
+                              if (!onUpdateOrder) return
+                              onUpdateOrder(
+                                { ...o, paymentReceiverId: e.target.value },
+                                `Изменение получателя оплаты заказа #${o.id} в отчете по контрагенту`
+                              )
+                            }}
+                            className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-medium"
+                          >
+                            <option value="">-- Выберите --</option>
+                            {payers.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* Editable Paid Checkbox (Оплачено) */}
+                        <td className="sheet-cell text-center p-0">
+                          <input
+                            type="checkbox"
+                            checked={!!o.paymentReceived}
+                            onChange={e => {
+                              if (!onUpdateOrder) return
+                              onUpdateOrder(
+                                { ...o, paymentReceived: e.target.checked },
+                                `Изменение статуса оплаты заказа #${o.id} в отчете по контрагенту`
+                              )
+                            }}
+                            className="cursor-pointer accent-[#ffcc00]"
+                          />
+                        </td>
                       </tr>
                     )
                   })
@@ -491,7 +545,7 @@ export default function ReportsTab({
                   <td className="sheet-cell text-right text-[#1e40af] font-black">{clientTotals.totalSale.toLocaleString('ru-RU')} ₽</td>
                   <td className="sheet-cell text-right text-[#9a3412] font-black">{clientTotals.totalCosts.toLocaleString('ru-RU')} ₽</td>
                   <td className="sheet-cell text-right text-[#15803d] font-black">{clientTotals.totalProfit.toLocaleString('ru-RU')} ₽</td>
-                  <td className="sheet-cell text-center text-slate-700">Рент {clientTotals.avgRent.toFixed(1)}%</td>
+                  <td colSpan={3} className="sheet-cell text-center text-slate-700 font-extrabold">Рент {clientTotals.avgRent.toFixed(1)}%</td>
                 </tr>
               </tfoot>
             </table>
