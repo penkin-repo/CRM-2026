@@ -27,6 +27,7 @@ export default function AiOrderModal({
   const [inputText, setInputText] = useState('')
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('openrouter_key') || '')
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('openrouter_model') || 'openai/gpt-4o-mini')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [parsedData, setParsedData] = useState<any | null>(null)
@@ -56,6 +57,11 @@ export default function AiOrderModal({
     localStorage.setItem('openrouter_key', key)
   }
 
+  const handleSaveModel = (model: string) => {
+    setSelectedModel(model)
+    localStorage.setItem('openrouter_model', model)
+  }
+
   const handleParse = async () => {
     if (!inputText.trim() && !imageBase64) {
       setError('Введите текст или загрузите фото/скан документа.')
@@ -71,6 +77,7 @@ export default function AiOrderModal({
         text: inputText,
         imageBase64: imageBase64 || undefined,
         apiKey: apiKey.trim() || undefined,
+        model: selectedModel.trim() || undefined,
         clients,
         contractors,
         payers
@@ -216,19 +223,37 @@ export default function AiOrderModal({
 
         {/* Content */}
         <div className="p-4 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
-          {/* API Key configuration */}
-          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex flex-col gap-1">
-            <label className="font-bold text-[#333740] flex items-center justify-between">
-              <span>OpenRouter API Key (опционально, если задан в .env):</span>
-              {apiKey && <span className="text-[10px] text-emerald-600 font-semibold">✓ Сохранен локально</span>}
-            </label>
-            <input
-              type="password"
-              placeholder="sk-or-v1-..."
-              value={apiKey}
-              onChange={e => handleSaveApiKey(e.target.value)}
-              className="border border-slate-300 rounded px-2 py-1 text-xs bg-white focus:outline-blue-500 font-mono"
-            />
+          {/* API Key and Model configuration */}
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="font-bold text-[#333740] flex items-center justify-between">
+                <span>API Key (OpenRouter):</span>
+                {apiKey && <span className="text-[10px] text-emerald-600 font-semibold">✓ Сохранен</span>}
+              </label>
+              <input
+                type="password"
+                placeholder="sk-or-v1-... (или из .env)"
+                value={apiKey}
+                onChange={e => handleSaveApiKey(e.target.value)}
+                className="border border-slate-300 rounded px-2 py-1 text-xs bg-white focus:outline-blue-500 font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-bold text-[#333740]">
+                <span>Модель ИИ (OpenRouter):</span>
+              </label>
+              <select
+                value={selectedModel}
+                onChange={e => handleSaveModel(e.target.value)}
+                className="border border-slate-300 rounded px-2 py-1 text-xs bg-white focus:outline-blue-500 font-medium text-slate-800"
+              >
+                <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini (По умолчанию)</option>
+                <option value="openai/gpt-4o">OpenAI: GPT-4o (Максимальная точность)</option>
+                <option value="anthropic/claude-3.5-sonnet">Anthropic: Claude 3.5 Sonnet</option>
+                <option value="google/gemini-2.0-flash-exp:free">Google: Gemini 2.0 Flash (Free)</option>
+                <option value="google/gemini-flash-1.5">Google: Gemini 1.5 Flash</option>
+              </select>
+            </div>
           </div>
 
           {/* Text Input */}

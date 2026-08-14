@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { text, imageBase64, apiKey: customApiKey, clients = [], contractors = [], payers = [] } = req.body || {}
+    const { text, imageBase64, apiKey: customApiKey, model: customModel, clients = [], contractors = [], payers = [] } = req.body || {}
     const rawKey = (customApiKey || process.env.OPENROUTER_API_KEY || '').trim()
 
     if (!rawKey || rawKey === 'sk-or-v1-...' || rawKey.length < 15) {
@@ -129,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const selectedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001'
+    const selectedModel = (customModel || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini').trim()
 
     const payload = {
       model: selectedModel,

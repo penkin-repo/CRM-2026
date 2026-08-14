@@ -171,7 +171,7 @@ export const api = {
   },
 
   // ai assistant
-  parseOrderWithAI: async (params: { text?: string; imageBase64?: string; apiKey?: string; clients: any[]; contractors: any[]; payers: any[] }) => {
+  parseOrderWithAI: async (params: { text?: string; imageBase64?: string; apiKey?: string; model?: string; clients: any[]; contractors: any[]; payers: any[] }) => {
     const r = await authFetch('/api/ai-parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
