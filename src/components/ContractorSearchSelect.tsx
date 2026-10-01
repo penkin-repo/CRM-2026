@@ -178,7 +178,7 @@ export default function ContractorSearchSelect({
             }}
             onKeyDown={handleInputKeyDown}
             placeholder="Поиск по названию или телефону..."
-            className="w-full h-full text-xs font-semibold outline-none bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-rose-400"
+            className="w-full h-full text-xs font-semibold outline-none bg-transparent contractor-selected-text placeholder:text-rose-400"
           />
           {searchQuery && (
             <button
@@ -211,11 +211,11 @@ export default function ContractorSearchSelect({
           title={selectedContractor ? selectedContractor.name : 'Выберите подрядчика'}
         >
           {selectedContractor ? (
-            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+            <span className="text-xs font-bold contractor-selected-text truncate">
               {selectedContractor.name}
             </span>
           ) : (
-            <span className="text-xs font-semibold text-red-500 dark:text-red-400 flex items-center gap-1 truncate">
+            <span className="text-xs font-semibold text-red-500 flex items-center gap-1 truncate">
               -- Выберите подрядчика --
             </span>
           )}

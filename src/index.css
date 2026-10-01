@@ -87,7 +87,7 @@ tr.sheet-row:hover td.sheet-cell {
   background-color: #fff9d6 !important;
 }
 
-/* ACTIVE EDITABLE CELL HIGHLIGHT */
+/* ACTIVE EDITABLE CELL HIGHLIGHT - STYLEGUIDE_A29.md */
 td.sheet-cell-active,
 td.sheet-cell:focus-within {
   outline: 2.5px solid #d97706 !important;
@@ -97,7 +97,7 @@ td.sheet-cell:focus-within {
   z-index: 30 !important;
   font-weight: 600 !important;
   opacity: 1 !important;
-  color: #0f172a !important;
+  color: #1c1d1f !important;
 }
 
 td.sheet-cell-active input,
@@ -105,16 +105,41 @@ td.sheet-cell:focus-within input,
 td.sheet-cell-active textarea,
 td.sheet-cell:focus-within textarea,
 td.sheet-cell-active select,
-td.sheet-cell:focus-within select {
-  color: #0f172a !important;
+td.sheet-cell:focus-within select,
+td.sheet-cell-active span,
+td.sheet-cell:focus-within span,
+td.sheet-cell-active div,
+td.sheet-cell:focus-within div {
+  color: #1c1d1f !important;
 }
 
+/* Base sheet cell text styling - strictly #1c1d1f per STYLEGUIDE_A29.md */
+.sheet-grid,
+.sheet-cell,
+.sheet-cell input,
+.sheet-cell select,
+.sheet-cell span:not(.text-red-500):not(.text-red-400):not(.text-red-600):not(.text-emerald-600),
+.sheet-cell div:not(.text-red-500):not(.text-red-400):not(.text-red-600):not(.text-emerald-600) {
+  color: #1c1d1f !important;
+}
+
+.client-selected-text,
+.contractor-selected-text,
 .contractor-formula-input {
-  color: #0f172a !important;
+  color: #1c1d1f !important;
 }
 
-html.dark .contractor-formula-input {
-  color: #fef08a !important;
+/* Sub-tables (Подрядчики) - STYLEGUIDE_A29.md 2.Д */
+tr.subtable-row {
+  background-color: #fffef2 !important;
+  border-left: 4px solid #ffcc00 !important;
+  border-bottom: 2px solid #d9a800 !important;
+}
+
+.subtable-header {
+  color: #333740 !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
 }
 
 /* Custom A29 CRM Scrollbar */
@@ -267,26 +292,27 @@ html.dark input.placeholder-unfilled::placeholder {
   opacity: 0.9 !important;
 }
 
-.client-selected-text {
+.client-selected-text,
+.contractor-selected-text,
+html.dark .client-selected-text,
+html.dark .contractor-selected-text {
   color: #1c1d1f !important;
-}
-
-html.dark .client-selected-text {
-  color: #f8fafc !important;
 }
 
 /* Active cell highlight in dark mode */
 html.dark td.sheet-cell-active,
 html.dark td.sheet-cell:focus-within {
-  outline: 2.5px solid #f59e0b !important;
-  background-color: #332611 !important;
-  color: #fef08a !important;
+  outline: 2.5px solid #d97706 !important;
+  background-color: #fef3c7 !important;
+  color: #1c1d1f !important;
   opacity: 1 !important;
 }
 
 html.dark td.sheet-cell-active input,
-html.dark td.sheet-cell:focus-within input {
-  color: #fef08a !important;
+html.dark td.sheet-cell:focus-within input,
+html.dark td.sheet-cell-active span,
+html.dark td.sheet-cell:focus-within span {
+  color: #1c1d1f !important;
 }
 
 /* Special cell backgrounds & helper bars */
@@ -303,15 +329,8 @@ html.dark .bg-slate-200\/80 {
   color: #64748b !important;
 }
 
-html.dark .text-\[\#1c1d1f\],
-html.dark .text-\[\#44474e\],
-html.dark .text-\[\#22252a\] {
-  color: #f1f5f9 !important;
-}
-
-html.dark .text-\[\#555a64\],
-html.dark .text-\[\#333740\] {
-  color: #94a3b8 !important;
+html.dark .text-\[\#1c1d1f\] {
+  color: #1c1d1f !important;
 }
 
 html.dark textarea,

@@ -215,7 +215,7 @@ export default function ClientSearchSelect({
               {selectedClient.name}
             </span>
           ) : (
-            <span className="text-xs font-semibold text-red-500 dark:text-red-400 flex items-center gap-1 truncate">
+            <span className="text-xs font-semibold text-red-500 flex items-center gap-1 truncate">
               Выберите контрагента...
             </span>
           )}

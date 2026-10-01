@@ -10,6 +10,7 @@ import {
   Sparkles,
   Search,
   AlertTriangle,
+  Eye,
   FileSpreadsheet,
   Check,
   X
@@ -814,32 +815,39 @@ export default function OrdersTab({
                         />
                       </td>
 
-                      {/* Actions */}
+                      {/* Actions - STYLEGUIDE_A29.md */}
                       <td className="sheet-cell text-center p-0">
                         <div className="flex items-center justify-center gap-1 w-full h-full px-1">
-                          {/* Google Sheets TSV Copy Button */}
+                          {/* Google Sheets TSV Copy Icon Button */}
                           <button
-                            title="Скопировать строку для вставки в Google Таблицу (Ctrl+V). Зажмите Shift для предпросмотра."
-                            className={`text-[10px] px-1.5 py-0.5 font-bold cursor-pointer transition rounded shrink-0 flex items-center gap-1 border shadow-2xs ${
+                            title="Скопировать для Google Таблицы (Ctrl+V)"
+                            className={`p-1 rounded cursor-pointer transition flex items-center justify-center border ${
                               copiedGoogleId === order.id
                                 ? 'bg-emerald-600 text-white border-emerald-700'
-                                : 'text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                : 'text-emerald-700 hover:text-emerald-900 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]'
                             }`}
-                            onClick={(e) => {
-                              if (e.shiftKey) {
-                                setGooglePreviewOrder({ order, idx })
-                              } else {
-                                handleCopyGoogleRow(order, idx)
-                              }
-                            }}
+                            onClick={() => handleCopyGoogleRow(order, idx)}
                           >
-                            <FileSpreadsheet className="w-3.5 h-3.5" />
-                            <span>{copiedGoogleId === order.id ? '✓ OK' : 'Гугл'}</span>
+                            {copiedGoogleId === order.id ? (
+                              <Check className="w-3.5 h-3.5 text-white" />
+                            ) : (
+                              <FileSpreadsheet className="w-3.5 h-3.5" />
+                            )}
                           </button>
 
+                          {/* Google Sheets Preview Modal Icon Button */}
+                          <button
+                            title="Предпросмотр данных для Google Таблицы (12 колонок)"
+                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-[#555a64] hover:text-[#1c1d1f] bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
+                            onClick={() => setGooglePreviewOrder({ order, idx })}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Copy ID Button */}
                           <button
                             title={`Скопировать уникальный номер заказа (#${order.id})`}
-                            className="text-[10px] px-1 py-0.5 font-bold cursor-pointer transition text-[#1e40af] hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded font-mono shrink-0"
+                            className="text-[10px] px-1 py-0.5 font-bold cursor-pointer transition text-[#1e40af] hover:text-blue-900 bg-blue-50 hover:bg-[#fff9d6] border border-blue-200 rounded font-mono shrink-0"
                             onClick={() => {
                               navigator.clipboard.writeText(order.id)
                               setCopiedId(order.id)
@@ -848,16 +856,20 @@ export default function OrdersTab({
                           >
                             {copiedId === order.id ? '✓ OK' : `#${order.id.slice(0, 4)}`}
                           </button>
+
+                          {/* Duplicate Order */}
                           <button
                             title="Дублировать заказ"
-                            className="text-slate-600 hover:text-blue-600 p-0.5 cursor-pointer"
+                            className="p-1 text-slate-600 hover:text-blue-600 hover:bg-[#fff9d6] rounded cursor-pointer transition"
                             onClick={() => onCopyOrder(order)}
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
+
+                          {/* Delete Order */}
                           <button
                             title="Удалить заказ"
-                            className="text-red-600 hover:text-red-800 p-0.5 cursor-pointer"
+                            className="p-1 text-red-600 hover:text-red-800 hover:bg-[#fff9d6] rounded cursor-pointer transition"
                             onClick={() => onDeleteOrder(order.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -866,12 +878,12 @@ export default function OrdersTab({
                       </td>
                     </tr>
 
-                    {/* EXPANDED CONTRACTOR SUB-TABLE */}
+                    {/* EXPANDED CONTRACTOR SUB-TABLE - STYLEGUIDE_A29.md 2.Д */}
                     {isExp && (
-                      <tr className="bg-[#fcfbe3] border-b-2 border-b-[#d9a800]">
-                        <td colSpan={14} className="p-2 pl-10">
+                      <tr className="subtable-row bg-[#fffef2] border-l-4 border-l-[#ffcc00] border-b-2 border-b-[#d9a800]">
+                        <td colSpan={14} className="p-2 pl-6">
                           <div className="bg-white border border-[#b8bdc5] rounded shadow-2xs overflow-hidden">
-                            <div className="bg-[#e6e9ed] px-2.5 py-1 border-b border-[#b8bdc5] flex justify-between items-center text-xs font-bold text-[#1c1d1f]">
+                            <div className="bg-[#f0f2f5] px-2.5 py-1 border-b border-[#b8bdc5] flex justify-between items-center text-xs font-extrabold text-[#333740]">
                               <span>Подрядчики и затраты по заказу #{order.id} (Затраты: {t.costs.toLocaleString('ru-RU')} ₽)</span>
                               <button
                                 className="bg-[#ffcc00] hover:bg-[#e6b800] text-[#1c1d1f] border border-[#d9a800] rounded px-2 py-0.5 text-[11px] font-bold cursor-pointer shadow-2xs flex items-center gap-1"
@@ -954,7 +966,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-slate-900 dark:text-slate-100 placeholder-unfilled"
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f] placeholder-unfilled"
                                             placeholder="Описание работы..."
                                           />
                                         </td>
@@ -975,13 +987,13 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-slate-900 dark:text-amber-200 contractor-formula-input placeholder-unfilled"
+                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-[#1c1d1f] contractor-formula-input placeholder-unfilled"
                                             placeholder="0 ₽ (укажите сумму)"
                                           />
                                         </td>
 
                                         {/* Computed Cost Result */}
-                                        <td className="sheet-cell text-right font-bold text-slate-800 dark:text-slate-200 bg-[#f9fafb]">
+                                        <td className="sheet-cell text-right font-bold text-[#1c1d1f] bg-[#f9fafb]">
                                           <div className="cell-truncate">{(cr.costValue || 0).toLocaleString('ru-RU')} ₽</div>
                                         </td>
 
@@ -994,7 +1006,7 @@ export default function OrdersTab({
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
                                             }}
                                             className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
-                                              !cr.payerId ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'
+                                              !cr.payerId ? 'text-red-500' : 'text-[#1c1d1f]'
                                             }`}
                                           >
                                             <option value="">-- Выберите плательщика --</option>
@@ -1045,7 +1057,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, note: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-slate-900 dark:text-slate-100"
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f]"
                                             placeholder="Примечание..."
                                           />
                                         </td>
