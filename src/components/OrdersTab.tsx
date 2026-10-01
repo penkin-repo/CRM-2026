@@ -477,7 +477,7 @@ export default function OrdersTab({
             : 'Строка ввода — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
         </div>
         <textarea
-          className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] bg-[#fffdf0]"
+          className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-slate-900 dark:text-slate-100 bg-[#fffdf0]"
           value={editBar}
           onChange={e => {
             const v = e.target.value
@@ -930,7 +930,7 @@ export default function OrdersTab({
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
                                             }}
                                             className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
-                                              !cr.contractorId ? 'text-red-500 dark:text-red-400' : ''
+                                              !cr.contractorId ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'
                                             }`}
                                           >
                                             <option value="">-- Выберите подрядчика --</option>
@@ -955,7 +955,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent placeholder-unfilled"
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-slate-900 dark:text-slate-100 placeholder-unfilled"
                                             placeholder="Описание работы..."
                                           />
                                         </td>
@@ -976,13 +976,13 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-[#1c1d1f] dark:text-[#f8fafc] placeholder-unfilled"
+                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-slate-900 dark:text-amber-200 contractor-formula-input placeholder-unfilled"
                                             placeholder="0 ₽ (укажите сумму)"
                                           />
                                         </td>
 
                                         {/* Computed Cost Result */}
-                                        <td className="sheet-cell text-right font-bold text-slate-800 bg-[#f9fafb]">
+                                        <td className="sheet-cell text-right font-bold text-slate-800 dark:text-slate-200 bg-[#f9fafb]">
                                           <div className="cell-truncate">{(cr.costValue || 0).toLocaleString('ru-RU')} ₽</div>
                                         </td>
 
@@ -995,7 +995,7 @@ export default function OrdersTab({
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
                                             }}
                                             className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
-                                              !cr.payerId ? 'text-red-500 dark:text-red-400' : ''
+                                              !cr.payerId ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'
                                             }`}
                                           >
                                             <option value="">-- Выберите плательщика --</option>
@@ -1046,7 +1046,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, note: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-slate-900 dark:text-slate-100"
                                             placeholder="Примечание..."
                                           />
                                         </td>

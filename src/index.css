@@ -97,6 +97,24 @@ td.sheet-cell:focus-within {
   z-index: 30 !important;
   font-weight: 600 !important;
   opacity: 1 !important;
+  color: #0f172a !important;
+}
+
+td.sheet-cell-active input,
+td.sheet-cell:focus-within input,
+td.sheet-cell-active textarea,
+td.sheet-cell:focus-within textarea,
+td.sheet-cell-active select,
+td.sheet-cell:focus-within select {
+  color: #0f172a !important;
+}
+
+.contractor-formula-input {
+  color: #0f172a !important;
+}
+
+html.dark .contractor-formula-input {
+  color: #fef08a !important;
 }
 
 /* Custom A29 CRM Scrollbar */
@@ -309,6 +327,11 @@ html.dark .bg-\[\#fff5a8\] {
   background-color: #2c2714 !important;
   border-color: #594a18 !important;
   color: #fef08a !important;
+}
+
+html.dark tr.bg-\[\#fcfbe3\] {
+  background-color: #1a1d26 !important;
+  border-bottom-color: #594a18 !important;
 }
 
 html.dark ::-webkit-scrollbar-track {
