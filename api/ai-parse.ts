@@ -118,12 +118,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const selectedModel = (customModel || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini').trim()
 
-    const payload = {
-      model: selectedModel,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessageContent.length === 1 && userMessageContent[0].type === 'text' ? userMessageContent[0].text : userMessageContent }
-      ],
     const isGptModel = selectedModel.includes('gpt-') || selectedModel.includes('openai/')
     const payload: any = {
       model: selectedModel,

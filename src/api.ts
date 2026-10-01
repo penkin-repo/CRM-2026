@@ -177,9 +177,15 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params)
     })
-    const json = await r.json()
+    const rawText = await r.text()
+    let json: any = {}
+    try {
+      json = JSON.parse(rawText)
+    } catch {
+      throw new Error(rawText.slice(0, 120) || `Ошибка сервера (HTTP ${r.status})`)
+    }
     if (!r.ok || !json.ok) {
-      throw new Error(json.error || 'Ошибка при разборе ИИ')
+      throw new Error(json.error || `Ошибка при разборе ИИ (HTTP ${r.status})`)
     }
     return json.data
   }
