@@ -333,11 +333,24 @@ html.dark .text-\[\#1c1d1f\] {
   color: #1c1d1f !important;
 }
 
+/* Quick Property Edit Bar (Строка ввода) - strictly #1c1d1f per STYLEGUIDE_A29.md */
+textarea,
+textarea.quick-property-textarea,
+.bg-\[\#fffdf0\],
 html.dark textarea,
+html.dark textarea.quick-property-textarea,
 html.dark .bg-\[\#fffdf0\] {
-  background-color: #22252e !important;
-  color: #f1f5f9 !important;
-  border-color: #383c4a !important;
+  background-color: #fffdf0 !important;
+  color: #1c1d1f !important;
+  border-color: #b8bdc5 !important;
+}
+
+textarea:focus,
+textarea.quick-property-textarea:focus,
+html.dark textarea:focus,
+html.dark textarea.quick-property-textarea:focus {
+  border-color: #ffcc00 !important;
+  color: #1c1d1f !important;
 }
 
 /* Yellow bars in dark mode */

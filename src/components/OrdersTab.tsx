@@ -493,7 +493,7 @@ export default function OrdersTab({
             : 'Строка ввода — выберите ячейку (навигация стрелками ← → ↑ ↓)'}
         </div>
         <textarea
-          className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-slate-900 dark:text-slate-100 bg-[#fffdf0]"
+          className="w-full min-h-[34px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] font-semibold bg-[#fffdf0] quick-property-textarea"
           value={editBar}
           onChange={e => {
             const v = e.target.value
