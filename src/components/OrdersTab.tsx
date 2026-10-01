@@ -9,11 +9,15 @@ import {
   ChevronDown,
   Sparkles,
   Search,
-  AlertTriangle
+  AlertTriangle,
+  FileSpreadsheet,
+  Check,
+  X
 } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
 import AiOrderModal from './AiOrderModal'
 import ClientSearchSelect from './ClientSearchSelect'
+import { formatOrderForGoogleSheets } from '../utils/googleSheetsExport'
 
 interface OrdersTabProps {
   orders: Order[]
@@ -80,7 +84,17 @@ export default function OrdersTab({
   } | null>(null)
   const [editBar, setEditBar] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copiedGoogleId, setCopiedGoogleId] = useState<string | null>(null)
+  const [googlePreviewOrder, setGooglePreviewOrder] = useState<{ order: Order; idx: number } | null>(null)
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+
+  // Copy order formatted as Google Sheets row (12 columns tab-separated)
+  const handleCopyGoogleRow = (order: Order, idx: number) => {
+    const { tsv } = formatOrderForGoogleSheets(order, idx, clients, contractors, payers)
+    navigator.clipboard.writeText(tsv)
+    setCopiedGoogleId(order.id)
+    setTimeout(() => setCopiedGoogleId(null), 2500)
+  }
 
   // Sync Top Edit-bar with selected cell content (both main orders and contractor sub-tables)
   useEffect(() => {
@@ -531,7 +545,7 @@ export default function OrdersTab({
               <th className="sheet-header" style={{ width: 35 }}>№ счета</th>
               <th className="sheet-header" style={{ width: 40 }}>Опл</th>
               <th className="sheet-header" style={{ width: 100 }}>Комментарий</th>
-              <th className="sheet-header" style={{ width: 130 }}>Действ</th>
+              <th className="sheet-header" style={{ width: 190 }}>Действ</th>
             </tr>
           </thead>
 
@@ -798,7 +812,27 @@ export default function OrdersTab({
 
                       {/* Actions */}
                       <td className="sheet-cell text-center p-0">
-                        <div className="flex items-center justify-center gap-1.5 w-full h-full px-1">
+                        <div className="flex items-center justify-center gap-1 w-full h-full px-1">
+                          {/* Google Sheets TSV Copy Button */}
+                          <button
+                            title="Скопировать строку для вставки в Google Таблицу (Ctrl+V). Зажмите Shift для предпросмотра."
+                            className={`text-[10px] px-1.5 py-0.5 font-bold cursor-pointer transition rounded shrink-0 flex items-center gap-1 border shadow-2xs ${
+                              copiedGoogleId === order.id
+                                ? 'bg-emerald-600 text-white border-emerald-700'
+                                : 'text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                            }`}
+                            onClick={(e) => {
+                              if (e.shiftKey) {
+                                setGooglePreviewOrder({ order, idx })
+                              } else {
+                                handleCopyGoogleRow(order, idx)
+                              }
+                            }}
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <span>{copiedGoogleId === order.id ? '✓ OK' : 'Гугл'}</span>
+                          </button>
+
                           <button
                             title={`Скопировать уникальный номер заказа (#${order.id})`}
                             className="text-[10px] px-1 py-0.5 font-bold cursor-pointer transition text-[#1e40af] hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded font-mono shrink-0"
@@ -1058,6 +1092,150 @@ export default function OrdersTab({
           onClose={() => setIsAiModalOpen(false)}
           onConfirmOrder={onConfirmAiOrder}
         />
+      )}
+
+      {/* Google Sheets Row Preview Modal */}
+      {googlePreviewOrder && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1c1e24] border border-[#b8bdc5] dark:border-[#333642] rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
+                <h3 className="font-bold text-sm">
+                  Строка для вставки в Google Таблицу (12 колонок)
+                </h3>
+              </div>
+              <button
+                onClick={() => setGooglePreviewOrder(null)}
+                className="text-emerald-100 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-3 text-xs">
+              <p className="text-slate-600 dark:text-slate-400">
+                Эта строка сформирована по структуре вашей Google Таблицы. При нажатии «Скопировать» данные копируются в буфер обмена: в таблице просто нажмите <b>Ctrl + V</b> на нужной строке.
+              </p>
+
+              {/* 12 Columns Preview Grid */}
+              <div className="overflow-x-auto border border-[#b8bdc5] dark:border-[#333642] rounded">
+                {(() => {
+                  const { rowData, tsv } = formatOrderForGoogleSheets(
+                    googlePreviewOrder.order,
+                    googlePreviewOrder.idx,
+                    clients,
+                    contractors,
+                    payers
+                  )
+                  const headers = [
+                    '№',
+                    'Клиент',
+                    'Заказ',
+                    'Испол 1',
+                    'Стоим 1',
+                    'Испол 2',
+                    'Стоим 2',
+                    'Испол 3',
+                    'Стоим 3',
+                    'Реал-я',
+                    'Счет, форма опл',
+                    'ОП'
+                  ]
+
+                  return (
+                    <table className="sheet-grid w-full text-xs">
+                      <thead>
+                        <tr>
+                          {headers.map((h, i) => (
+                            <th
+                              key={i}
+                              className="sheet-header bg-[#e2e6eb] dark:bg-[#282b36] text-[11px] font-bold px-2 py-1 border border-[#b8bdc5] dark:border-[#333642]"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="bg-white dark:bg-[#1c1f26]">
+                          {rowData.map((val, i) => (
+                            <td
+                              key={i}
+                              className={`p-2 border border-[#c9ced6] dark:border-[#333642] ${
+                                i === 3 && val.includes('ПЕНКИН-П')
+                                  ? 'bg-amber-50 dark:bg-amber-950/30 font-bold text-amber-900 dark:text-amber-200'
+                                  : ''
+                              }`}
+                            >
+                              {val || <span className="text-slate-300 italic">—</span>}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  )
+                })()}
+              </div>
+
+              {/* Raw TSV text box */}
+              <div>
+                <label className="font-bold text-[11px] text-slate-700 dark:text-slate-300 mb-1 block">
+                  Текст строки (разделитель Табуляция):
+                </label>
+                <textarea
+                  readOnly
+                  rows={2}
+                  value={
+                    formatOrderForGoogleSheets(
+                      googlePreviewOrder.order,
+                      googlePreviewOrder.idx,
+                      clients,
+                      contractors,
+                      payers
+                    ).tsv
+                  }
+                  className="w-full p-2 bg-slate-50 dark:bg-[#12141a] border border-[#b8bdc5] dark:border-[#333642] rounded font-mono text-[11px] select-all outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#f0f2f5] dark:bg-[#282b36] border-t border-[#b8bdc5] dark:border-[#333642] px-4 py-2.5 flex justify-end gap-2">
+              <button
+                onClick={() => setGooglePreviewOrder(null)}
+                className="px-3 py-1 bg-white dark:bg-[#1c1e24] border border-[#b8bdc5] dark:border-[#333642] rounded font-semibold text-slate-700 dark:text-slate-300 text-xs cursor-pointer hover:bg-slate-100"
+              >
+                Закрыть
+              </button>
+              <button
+                onClick={() => {
+                  const { tsv } = formatOrderForGoogleSheets(
+                    googlePreviewOrder.order,
+                    googlePreviewOrder.idx,
+                    clients,
+                    contractors,
+                    payers
+                  )
+                  navigator.clipboard.writeText(tsv)
+                  setCopiedGoogleId(googlePreviewOrder.order.id)
+                  setTimeout(() => setCopiedGoogleId(null), 2500)
+                  setGooglePreviewOrder(null)
+                }}
+                className="px-4 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" /> Скопировать в буфер (Ctrl+V)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Instant Copy Toast */}
+      {copiedGoogleId && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white px-4 py-2.5 rounded-lg shadow-2xl border border-emerald-600 flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
+          <Check className="w-4 h-4 text-emerald-300 shrink-0" />
+          <span>✓ Заказ скопирован для Google Таблицы! Нажмите <b>Ctrl + V</b> в таблице</span>
+        </div>
       )}
     </div>
   )
