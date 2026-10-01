@@ -1,4 +1,4 @@
-import { useState, ChangeEvent, useRef } from 'react'
+import { useState, ChangeEvent, useRef, useEffect } from 'react'
 import { Sparkles, X, Upload, Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
 import type { Client, Contractor, Payer, Order, OrderContractorRow } from '../types'
 import { api } from '../api'
@@ -33,6 +33,35 @@ export default function AiOrderModal({
   const [parsedData, setParsedData] = useState<any | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Support Ctrl + V paste directly into modal
+  useEffect(() => {
+    if (!isOpen) return
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile()
+          if (file) {
+            e.preventDefault()
+            if (file.size > 8 * 1024 * 1024) {
+              alert('Файл слишком большой. Максимальный размер 8 МБ.')
+              return
+            }
+            const reader = new FileReader()
+            reader.onload = () => {
+              setImageBase64(reader.result as string)
+            }
+            reader.readAsDataURL(file)
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -98,8 +127,21 @@ export default function AiOrderModal({
 
     // 1. Resolve Client
     let targetClientId = parsedData.clientId
+    const extractedClientName = (parsedData.clientNameExtracted || '').trim()
+    if (!targetClientId && extractedClientName) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-zа-я0-9]/g, '')
+      const extNorm = norm(extractedClientName)
+      const matched = clients.find(c => {
+        const cNorm = norm(c.name)
+        return cNorm.length >= 3 && (cNorm.includes(extNorm) || extNorm.includes(cNorm))
+      })
+      if (matched) {
+        targetClientId = matched.id
+      }
+    }
+
     if (!targetClientId) {
-      const extractedName = parsedData.clientNameExtracted || 'Новый клиент'
+      const extractedName = extractedClientName || 'Новый клиент'
       const placeholderName = `ВНЕСТИ (${extractedName})`
       
       let existingVnesti = clients.find(c => c.name === placeholderName || c.name.startsWith('ВНЕСТИ'))
@@ -129,9 +171,22 @@ export default function AiOrderModal({
     // 3. Resolve Contractor Rows
     const orderContractors: OrderContractorRow[] = (parsedData.contractors || []).map((row: any) => {
       let coId = row.contractorId
+      const coExtractedName = (row.contractorNameExtracted || '').trim()
+      if (!coId && coExtractedName) {
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-zа-я0-9]/g, '')
+        const extNorm = norm(coExtractedName)
+        const matched = contractors.find(c => {
+          const cNorm = norm(c.name)
+          return cNorm.length >= 2 && (cNorm.includes(extNorm) || extNorm.includes(cNorm))
+        })
+        if (matched) {
+          coId = matched.id
+        }
+      }
+
       if (!coId) {
-        const coExtractedName = row.contractorNameExtracted || 'Новый подрядчик'
-        const coPlaceholderName = `ВНЕСТИ (${coExtractedName})`
+        const fallbackName = coExtractedName || 'Новый подрядчик'
+        const coPlaceholderName = `ВНЕСТИ (${fallbackName})`
 
         let existingCoVnesti = contractors.find(c => c.name === coPlaceholderName || c.name.startsWith('ВНЕСТИ'))
         if (!existingCoVnesti && !newContractorsToCreate.some(c => c.name === coPlaceholderName)) {
@@ -188,6 +243,15 @@ export default function AiOrderModal({
       const found = clients.find(c => c.id === id)
       if (found) return found.name
     }
+    if (extracted) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-zа-я0-9]/g, '')
+      const extNorm = norm(extracted)
+      const found = clients.find(c => {
+        const cNorm = norm(c.name)
+        return cNorm.length >= 3 && (cNorm.includes(extNorm) || extNorm.includes(cNorm))
+      })
+      if (found) return `${found.name} (найден)`
+    }
     return `ВНЕСТИ (${extracted || 'Не распознан'})`
   }
 
@@ -195,6 +259,15 @@ export default function AiOrderModal({
     if (id) {
       const found = contractors.find(c => c.id === id)
       if (found) return found.name
+    }
+    if (extracted) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-zа-я0-9]/g, '')
+      const extNorm = norm(extracted)
+      const found = contractors.find(c => {
+        const cNorm = norm(c.name)
+        return cNorm.length >= 2 && (cNorm.includes(extNorm) || extNorm.includes(cNorm))
+      })
+      if (found) return `${found.name} (найден)`
     }
     return `ВНЕСТИ (${extracted || 'Не распознан'})`
   }
@@ -269,16 +342,35 @@ export default function AiOrderModal({
           </div>
 
           {/* Image Upload */}
-          <div className="space-y-1">
-            <label className="font-bold text-[#333740]">Прикрепить фото / скан (накладная, чек, мессенджер):</label>
-            <div className="flex items-center gap-3">
+          <div
+            onDrop={(e) => {
+              e.preventDefault()
+              const file = e.dataTransfer.files?.[0]
+              if (file && file.type.startsWith('image/')) {
+                if (file.size > 8 * 1024 * 1024) {
+                  alert('Файл слишком большой. Максимальный размер 8 МБ.')
+                  return
+                }
+                const reader = new FileReader()
+                reader.onload = () => setImageBase64(reader.result as string)
+                reader.readAsDataURL(file)
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            className="space-y-1 p-2.5 rounded-lg border border-dashed border-slate-300 hover:border-blue-400 bg-slate-50/70 transition"
+          >
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-[#333740]">Прикрепить фото / скан расчёта (или нажмите Ctrl + V):</label>
+              <span className="text-[10px] text-slate-500">Поддерживается Drag & Drop</span>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded text-slate-700 font-medium cursor-pointer transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-slate-700 font-medium cursor-pointer transition shadow-2xs"
               >
                 <Upload className="w-4 h-4 text-blue-600" />
-                <span>Загрузить изображение</span>
+                <span>Выбрать файл скриншота</span>
               </button>
               <input
                 ref={fileInputRef}
@@ -287,17 +379,19 @@ export default function AiOrderModal({
                 onChange={handleImageUpload}
                 className="hidden"
               />
-              {imageBase64 && (
+              {imageBase64 ? (
                 <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
-                  <span className="text-emerald-700 font-medium text-[11px]">✓ Изображение прикреплено</span>
+                  <span className="text-emerald-700 font-medium text-[11px]">✓ Скриншот прикреплен</span>
                   <button
                     type="button"
                     onClick={() => setImageBase64(null)}
-                    className="text-red-500 hover:text-red-700 font-bold ml-1 text-xs"
+                    className="text-red-500 hover:text-red-700 font-bold ml-1 text-xs cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
+              ) : (
+                <span className="text-[11px] text-slate-400">Сделайте скриншот и нажмите Ctrl + V</span>
               )}
             </div>
           </div>
