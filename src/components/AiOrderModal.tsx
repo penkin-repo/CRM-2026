@@ -9,6 +9,7 @@ interface AiOrderModalProps {
   clients: Client[]
   contractors: Contractor[]
   payers: Payer[]
+  selectedMonth?: string
   onConfirmOrder: (
     newOrder: Order,
     newClientsToCreate: Client[],
@@ -22,6 +23,7 @@ export default function AiOrderModal({
   clients,
   contractors,
   payers,
+  selectedMonth,
   onConfirmOrder
 }: AiOrderModalProps) {
   const [inputText, setInputText] = useState('')
@@ -218,9 +220,13 @@ export default function AiOrderModal({
     })
 
     // 4. Construct Order
+    const defaultDate = selectedMonth
+      ? `${selectedMonth}-${String(new Date().getDate()).padStart(2, '0')}`
+      : new Date().toISOString().slice(0, 10)
+
     const newOrder: Order = {
       id: Math.random().toString(36).slice(2, 8),
-      date: parsedData.date || new Date().toISOString().slice(0, 10),
+      date: parsedData.date || defaultDate,
       clientId: targetClientId,
       productName: parsedData.productName || 'Заказ из ИИ',
       contractors: orderContractors,

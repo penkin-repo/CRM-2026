@@ -1111,6 +1111,7 @@ export default function OrdersTab({
           clients={clients}
           contractors={contractors}
           payers={payers}
+          selectedMonth={selectedMonth}
           onClose={() => setIsAiModalOpen(false)}
           onConfirmOrder={onConfirmAiOrder}
         />

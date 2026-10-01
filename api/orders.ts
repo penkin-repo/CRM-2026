@@ -59,13 +59,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
       const contractorsStr = typeof b.contractors === 'string' ? b.contractors : JSON.stringify(b.contractors || [])
+      
+      const orderId = String(b.id || Math.random().toString(36).slice(2, 8))
+      const orderDate = String(b.date || new Date().toISOString().slice(0, 10))
+      const clientId = String(b.clientId || '')
+      const productName = String(b.productName || '')
+      const saleAmount = Number(b.saleAmount || 0)
+      const saleFormula = String(b.saleFormula || '')
+      const paymentReceiverId = String(b.paymentReceiverId || '')
+      const paymentNote = String(b.paymentNote || '')
+      const paymentReceived = b.paymentReceived ? 1 : 0
+      const status = String(b.status || 'active')
+      const note = String(b.note || '')
+      const createdAt = String(b.createdAt || new Date().toISOString())
+      const userId = String(b.userId || '')
+
       await db.execute({
         sql: `INSERT INTO orders (id,date,client_id,product_name,contractors,sale_amount,sale_formula,payment_receiver_id,payment_note,payment_received,status,note,created_at,user_id)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
               ON CONFLICT(id) DO UPDATE SET date=excluded.date, client_id=excluded.client_id, product_name=excluded.product_name, contractors=excluded.contractors, sale_amount=excluded.sale_amount, sale_formula=excluded.sale_formula, payment_receiver_id=excluded.payment_receiver_id, payment_note=excluded.payment_note, payment_received=excluded.payment_received, status=excluded.status, note=excluded.note, user_id=excluded.user_id`,
-        args: [String(b.id), String(b.date||''), String(b.clientId||''), String(b.productName||''), contractorsStr, Number(b.saleAmount||0), String(b.saleFormula||''), String(b.paymentReceiverId||''), String(b.paymentNote||''), b.paymentReceived ? 1 : 0, String(b.status||'active'), String(b.note||''), String(b.createdAt||new Date().toISOString()), String(b.userId||'')]
+        args: [orderId, orderDate, clientId, productName, contractorsStr, saleAmount, saleFormula, paymentReceiverId, paymentNote, paymentReceived, status, note, createdAt, userId]
       })
-      return res.status(200).json({ ok: true })
+      return res.status(200).json({ ok: true, id: orderId })
     }
 
     if (req.method === 'DELETE') {

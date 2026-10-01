@@ -7,7 +7,9 @@ export async function getDb() {
   try {
     const { createClient } = await import('@libsql/client/web')
     const resolvedUrl = url.startsWith('libsql://') ? url.replace('libsql://', 'https://') : url
-    return createClient({ url: resolvedUrl, authToken: token })
+    const client = createClient({ url: resolvedUrl, authToken: token })
+    await ensureTables(client)
+    return client
   } catch (e) {
     console.error('Failed to create Turso client:', e)
     return null

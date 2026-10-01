@@ -224,12 +224,12 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
   }
 
-  const handleConfirmAiOrder = (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => {
+  const handleConfirmAiOrder = async (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => {
     let updatedClients = [...clients]
     for (const c of newClientsToCreate) {
       if (!updatedClients.some(x => x.id === c.id)) {
         updatedClients.push(c)
-        api.upsertClient(c).catch(() => {})
+        api.upsertClient(c).catch(err => console.error('Upsert client error:', err))
       }
     }
     if (newClientsToCreate.length > 0) setClients(updatedClients)
@@ -238,14 +238,30 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     for (const co of newContractorsToCreate) {
       if (!updatedContractors.some(x => x.id === co.id)) {
         updatedContractors.push(co)
-        api.upsertContractor(co).catch(() => {})
+        api.upsertContractor(co).catch(err => console.error('Upsert contractor error:', err))
       }
     }
     if (newContractorsToCreate.length > 0) setContractors(updatedContractors)
 
+    // Automatically navigate filters so the new order is immediately visible on screen
+    if (newOrder.date) {
+      const orderMonth = newOrder.date.slice(0, 7)
+      setSelectedMonth(orderMonth)
+    }
+    setDateFrom('')
+    setDateTo('')
+    setSearchQuery('')
+    setStatusFilter('all')
+
     const updatedOrders = [newOrder, ...orders]
     setOrders(updatedOrders)
-    api.upsertOrder({ ...newOrder, userId: newOrder.userId || currentUser.id }).catch(() => {})
+
+    try {
+      await api.upsertOrder({ ...newOrder, userId: newOrder.userId || currentUser.id })
+    } catch (e) {
+      console.error('Upsert AI order error:', e)
+    }
+
     logHistory('Создание заказа ИИ', `Заказ #${newOrder.id} создан ИИ помощником`, { clients: updatedClients, contractors: updatedContractors, payers, orders: updatedOrders })
   }
 

@@ -40,10 +40,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse){
     if (req.method === 'POST') {
       let b = req.body
       if (typeof b === 'string') { try { b = JSON.parse(b) } catch {} }
-      const snapshotStr = typeof b.snapshot === 'string' ? b.snapshot : JSON.stringify(b.snapshot || {})
+      let snapshotStr = '{}'
+      try {
+        snapshotStr = typeof b.snapshot === 'string' ? b.snapshot : JSON.stringify(b.snapshot || {})
+        if (snapshotStr.length > 500000) {
+          snapshotStr = JSON.stringify({ note: 'Snapshot omitted due to size' })
+        }
+      } catch {}
       await db.execute({
         sql: `INSERT INTO history (id,timestamp,action,description,snapshot,user_id) VALUES (?,?,?,?,?,?)`,
-        args: [String(b.id), String(b.timestamp||''), String(b.action||''), String(b.description||''), snapshotStr, String(b.userId||'')]
+        args: [String(b.id || Math.random().toString(36).slice(2, 8)), String(b.timestamp||new Date().toLocaleString('ru-RU')), String(b.action||''), String(b.description||''), snapshotStr, String(b.userId||'')]
       })
       return res.status(200).json({ ok: true })
     }

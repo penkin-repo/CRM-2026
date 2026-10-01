@@ -124,8 +124,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessageContent.length === 1 && userMessageContent[0].type === 'text' ? userMessageContent[0].text : userMessageContent }
       ],
-      response_format: { type: 'json_object' },
+    const isGptModel = selectedModel.includes('gpt-') || selectedModel.includes('openai/')
+    const payload: any = {
+      model: selectedModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessageContent.length === 1 && userMessageContent[0].type === 'text' ? userMessageContent[0].text : userMessageContent }
+      ],
       temperature: 0.1
+    }
+    if (isGptModel) {
+      payload.response_format = { type: 'json_object' }
     }
 
     const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -154,11 +163,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let parsedResult: any = {}
     try {
-      // Clean possible markdown code fences if model returned ```json ... ```
-      const cleanedContent = content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
-      parsedResult = JSON.parse(cleanedContent)
-    } catch (e) {
-      return res.status(500).json({ error: 'ИИ вернул невалидный JSON', raw: content })
+      const cleanedContent = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/)
+      parsedResult = JSON.parse(jsonMatch ? jsonMatch[0] : cleanedContent)
+    } catch (e: any) {
+      return res.status(500).json({ error: 'ИИ вернул невалидный JSON: ' + (e.message || ''), raw: content })
     }
 
     return res.json({ ok: true, data: parsedResult })
