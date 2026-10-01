@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, Trash2, Search, X } from 'lucide-react'
 import type { Contractor } from '../types'
 
 interface ContractorsTabProps {
@@ -17,6 +17,7 @@ export default function ContractorsTab({
 }: ContractorsTabProps) {
   const [activeCell, setActiveCell] = useState<{ id: string; field: keyof Contractor } | null>(null)
   const [editBar, setEditBar] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const handleCellFocus = (co: Contractor, field: keyof Contractor) => {
     setActiveCell({ id: co.id, field })
@@ -31,18 +32,60 @@ export default function ContractorsTab({
     onUpdateContractor({ ...target, [activeCell.field]: val })
   }
 
+  // Universal search across all contractor columns
+  const filteredContractors = useMemo(() => {
+    if (!searchQuery.trim()) return contractors
+    const q = searchQuery.toLowerCase().trim()
+    return contractors.filter(co => {
+      const name = (co.name || '').toLowerCase()
+      const phone = (co.phone || '').toLowerCase()
+      const note = (co.note || '').toLowerCase()
+      return name.includes(q) || phone.includes(q) || note.includes(q)
+    })
+  }, [contractors, searchQuery])
+
   return (
     <div className="flex-1 flex flex-col p-3 overflow-auto">
-      {/* Header & Create Button */}
-      <div className="flex justify-between items-center mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
-        <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
-          Справочник: Подрядчики и Менеджеры ({contractors.length})
-        </h2>
+      {/* Header & Controls Toolbar */}
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
+            Справочник: Подрядчики и Менеджеры ({contractors.length})
+          </h2>
+
+          {/* Universal Search Input */}
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Поиск по всем графам (подрядчик, тел, специализация)..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="border border-[#b8bdc5] rounded pl-7 pr-7 py-0.5 text-xs outline-none w-72 bg-white text-[#1c1d1f] focus:border-[#ffcc00] placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {searchQuery && (
+            <span className="text-[11px] font-semibold text-slate-600 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+              Найдено: {filteredContractors.length} из {contractors.length}
+            </span>
+          )}
+        </div>
+
         <button
-          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1"
+          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1 shrink-0"
           onClick={onAddContractor}
         >
-          <Plus className="w-3.5 h-3.5" /> Создать элемент
+          <Plus className="w-3.5 h-3.5" /> Создать подрядчика
         </button>
       </div>
 
@@ -72,14 +115,14 @@ export default function ContractorsTab({
             </tr>
           </thead>
           <tbody>
-            {contractors.length === 0 ? (
+            {filteredContractors.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-6 text-slate-400 text-xs">
-                  Справочник пуст
+                <td colSpan={5} className="text-center py-6 text-slate-500 text-xs">
+                  {searchQuery ? `По запросу "${searchQuery}" ничего не найдено` : 'Справочник пуст'}
                 </td>
               </tr>
             ) : (
-              contractors.map((co, idx) => {
+              filteredContractors.map((co, idx) => {
                 const isCellActive = (f: keyof Contractor) => activeCell?.id === co.id && activeCell?.field === f
                 return (
                   <tr key={co.id} className="hover:bg-[#fff9d6] text-xs border-b border-[#c9ced6]">
@@ -88,6 +131,7 @@ export default function ContractorsTab({
                       <input
                         type="text"
                         value={co.name}
+                        placeholder="ФИО / Название подрядчика..."
                         onFocus={() => handleCellFocus(co, 'name')}
                         onChange={e => onUpdateContractor({ ...co, name: e.target.value })}
                         className="w-full h-full px-2 text-xs font-bold outline-none bg-transparent"
@@ -97,6 +141,7 @@ export default function ContractorsTab({
                       <input
                         type="text"
                         value={co.phone || ''}
+                        placeholder="Телефон..."
                         onFocus={() => handleCellFocus(co, 'phone')}
                         onChange={e => onUpdateContractor({ ...co, phone: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
@@ -106,6 +151,7 @@ export default function ContractorsTab({
                       <input
                         type="text"
                         value={co.note || ''}
+                        placeholder="Специализация / Комментарий..."
                         onFocus={() => handleCellFocus(co, 'note')}
                         onChange={e => onUpdateContractor({ ...co, note: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"

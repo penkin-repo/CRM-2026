@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, Trash2, Search, X } from 'lucide-react'
 import type { Client } from '../types'
 
 interface ClientsTabProps {
@@ -17,6 +17,7 @@ export default function ClientsTab({
 }: ClientsTabProps) {
   const [activeCell, setActiveCell] = useState<{ id: string; field: keyof Client } | null>(null)
   const [editBar, setEditBar] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const handleCellFocus = (c: Client, field: keyof Client) => {
     setActiveCell({ id: c.id, field })
@@ -31,18 +32,70 @@ export default function ClientsTab({
     onUpdateClient({ ...target, [activeCell.field]: val })
   }
 
+  // Universal search across all client columns
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients
+    const q = searchQuery.toLowerCase().trim()
+    return clients.filter(c => {
+      const name = (c.name || '').toLowerCase()
+      const phone = (c.phone || '').toLowerCase()
+      const contact = (c.contactPerson || '').toLowerCase()
+      const email = (c.email || '').toLowerCase()
+      const note = (c.note || '').toLowerCase()
+      const custom = (c.customFields || []).map(f => `${f.label} ${f.value}`).join(' ').toLowerCase()
+      return (
+        name.includes(q) ||
+        phone.includes(q) ||
+        contact.includes(q) ||
+        email.includes(q) ||
+        note.includes(q) ||
+        custom.includes(q)
+      )
+    })
+  }, [clients, searchQuery])
+
   return (
     <div className="flex-1 flex flex-col p-3 overflow-auto">
-      {/* Header & Create Button */}
-      <div className="flex justify-between items-center mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
-        <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
-          Справочник: Клиенты и контрагенты ({clients.length})
-        </h2>
+      {/* Header & Controls Toolbar */}
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-2 bg-[#f0f2f5] p-2 border border-[#b8bdc5] rounded shadow-2xs">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xs font-bold text-[#1c1d1f] uppercase tracking-wide">
+            Справочник: Клиенты и контрагенты ({clients.length})
+          </h2>
+
+          {/* Universal Search Input */}
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Поиск по всем графам (клиент, тел, email, контакт)..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="border border-[#b8bdc5] rounded pl-7 pr-7 py-0.5 text-xs outline-none w-72 bg-white text-[#1c1d1f] focus:border-[#ffcc00] placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {searchQuery && (
+            <span className="text-[11px] font-semibold text-slate-600 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+              Найдено: {filteredClients.length} из {clients.length}
+            </span>
+          )}
+        </div>
+
         <button
-          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1"
+          className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1 shrink-0"
           onClick={onAddClient}
         >
-          <Plus className="w-3.5 h-3.5" /> Создать клиент
+          <Plus className="w-3.5 h-3.5" /> Создать клиента
         </button>
       </div>
 
@@ -74,14 +127,14 @@ export default function ClientsTab({
             </tr>
           </thead>
           <tbody>
-            {clients.length === 0 ? (
+            {filteredClients.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
-                  Справочник пуст
+                <td colSpan={7} className="text-center py-6 text-slate-500 text-xs">
+                  {searchQuery ? `По запросу "${searchQuery}" ничего не найдено` : 'Справочник пуст'}
                 </td>
               </tr>
             ) : (
-              clients.map((c, idx) => {
+              filteredClients.map((c, idx) => {
                 const isCellActive = (f: keyof Client) => activeCell?.id === c.id && activeCell?.field === f
                 return (
                   <tr key={c.id} className="hover:bg-[#fff9d6] text-xs border-b border-[#c9ced6]">
@@ -90,6 +143,7 @@ export default function ClientsTab({
                       <input
                         type="text"
                         value={c.name}
+                        placeholder="Наименование организации / ФИО..."
                         onFocus={() => handleCellFocus(c, 'name')}
                         onChange={e => onUpdateClient({ ...c, name: e.target.value })}
                         className="w-full h-full px-2 text-xs font-bold outline-none bg-transparent"
@@ -99,6 +153,7 @@ export default function ClientsTab({
                       <input
                         type="text"
                         value={c.phone || ''}
+                        placeholder="Телефон..."
                         onFocus={() => handleCellFocus(c, 'phone')}
                         onChange={e => onUpdateClient({ ...c, phone: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
@@ -108,6 +163,7 @@ export default function ClientsTab({
                       <input
                         type="text"
                         value={c.contactPerson || ''}
+                        placeholder="Контактное лицо..."
                         onFocus={() => handleCellFocus(c, 'contactPerson')}
                         onChange={e => onUpdateClient({ ...c, contactPerson: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
@@ -117,6 +173,7 @@ export default function ClientsTab({
                       <input
                         type="text"
                         value={c.email || ''}
+                        placeholder="Email..."
                         onFocus={() => handleCellFocus(c, 'email')}
                         onChange={e => onUpdateClient({ ...c, email: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
@@ -126,6 +183,7 @@ export default function ClientsTab({
                       <input
                         type="text"
                         value={c.note || ''}
+                        placeholder="Примечание..."
                         onFocus={() => handleCellFocus(c, 'note')}
                         onChange={e => onUpdateClient({ ...c, note: e.target.value })}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"

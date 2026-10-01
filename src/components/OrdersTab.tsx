@@ -8,10 +8,12 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  Search
+  Search,
+  AlertTriangle
 } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
 import AiOrderModal from './AiOrderModal'
+import ClientSearchSelect from './ClientSearchSelect'
 
 interface OrdersTabProps {
   orders: Order[]
@@ -32,7 +34,11 @@ interface OrdersTabProps {
   onCopyOrder: (order: Order) => void
   onDeleteOrder: (id: string) => void
   onUpdateOrder: (updated: Order, actionDesc: string) => void
-  onConfirmAiOrder: (data: any) => void
+  onConfirmAiOrder: (
+    newOrder: Order,
+    newClientsToCreate: Client[],
+    newContractorsToCreate: Contractor[]
+  ) => void
 }
 
 const EDITABLE_FIELDS = [
@@ -105,8 +111,73 @@ export default function OrdersTab({
     }
   }, [activeCell, orders])
 
+  // Validation function: Check for unfilled required fields in order and contractor rows
+  const getOrderValidationErrors = (order: Order): string[] => {
+    const errors: string[] = []
+    if (!order.date) {
+      errors.push('Дата заказа не заполнена')
+    }
+    if (!order.clientId) {
+      errors.push('Контрагент (клиент) не выбран')
+    }
+    if (!order.productName || !order.productName.trim()) {
+      errors.push('Номенклатура (продукция) не заполнена')
+    }
+    if (!order.saleAmount || order.saleAmount <= 0) {
+      errors.push('Сумма реализации не указана (должна быть > 0)')
+    }
+    if (!order.paymentReceiverId) {
+      errors.push('Счет получателя не выбран')
+    }
+
+    const crs = order.contractors || []
+    if (crs.length === 0) {
+      errors.push('В заказе должен быть добавлен минимум 1 подрядчик')
+    } else {
+      crs.forEach((cr, i) => {
+        const num = i + 1
+        if (!cr.contractorId) {
+          errors.push(`Подрядчик №${num}: не выбран исполнитель`)
+        }
+        if (!cr.description || !cr.description.trim()) {
+          errors.push(`Подрядчик №${num}: не заполнено описание работы`)
+        }
+        if (!cr.costValue || cr.costValue <= 0) {
+          errors.push(`Подрядчик №${num}: не указана стоимость/затраты`)
+        }
+        if (!cr.payerId) {
+          errors.push(`Подрядчик №${num}: не выбран плательщик`)
+        }
+      })
+    }
+    return errors
+  }
+
   const toggleExpand = (id: string) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }))
+    const willExpand = !expanded[id]
+    setExpanded(prev => ({ ...prev, [id]: willExpand }))
+
+    // If expanding an order that has no contractor rows, automatically add one
+    if (willExpand) {
+      const targetOrder = orders.find(o => o.id === id)
+      if (targetOrder && (!targetOrder.contractors || targetOrder.contractors.length === 0)) {
+        const newRow: OrderContractorRow = {
+          id: 'cr_' + Math.random().toString(36).slice(2, 7),
+          contractorId: '',
+          description: '',
+          costFormula: '',
+          costValue: 0,
+          payerId: '',
+          paid: false,
+          reconciled: false,
+          note: ''
+        }
+        onUpdateOrder(
+          { ...targetOrder, contractors: [newRow] },
+          `Автоматическое добавление строки подрядчика в заказ #${targetOrder.id}`
+        )
+      }
+    }
   }
 
   // Safe formula evaluation
@@ -441,9 +512,9 @@ export default function OrdersTab({
           <thead>
             <tr>
               <th className="sheet-header" style={{ width: 45 }}>№</th>
-              <th className="sheet-header" style={{ width: 45 }}>Стат</th>
+              <th className="sheet-header" style={{ width: 55 }}>Стат</th>
               <th className="sheet-header" style={{ width: 95 }}>Дата</th>
-              <th className="sheet-header" style={{ width: 160 }}>Контрагент (Клиент)</th>
+              <th className="sheet-header" style={{ width: 180 }}>Контрагент (Клиент)</th>
               <th className="sheet-header" style={{ width: 220 }}>Номенклатура (Продукция)</th>
               <th className="sheet-header" style={{ width: 70 }}>Затраты</th>
               <th className="sheet-header" style={{ width: 70 }}>Сумма реал.</th>
@@ -471,6 +542,7 @@ export default function OrdersTab({
                 const cash = isCashPayer(order.paymentReceiverId)
                 const isCellActive = (field: string) => activeCell?.oid === order.id && activeCell?.field === field && !activeCell.contractorRowId
                 const isCompleted = order.status === 'completed'
+                const validationErrors = getOrderValidationErrors(order)
 
                 return (
                   <Fragment key={order.id}>
@@ -489,22 +561,49 @@ export default function OrdersTab({
                         </div>
                       </td>
 
-                      {/* Status Toggle */}
+                      {/* Status Toggle with Warning Badge and Completed Validation Lock */}
                       <td className="sheet-cell text-center p-0">
-                        <button
-                          className="w-full h-full flex items-center justify-center cursor-pointer"
-                          onClick={() => {
-                            const newStatus = isCompleted ? 'active' : 'completed'
-                            onUpdateOrder({ ...order, status: newStatus }, `Смена статуса заказа #${order.id} на ${newStatus}`)
-                          }}
-                          title={isCompleted ? 'Пометить как В работе' : 'Пометить как Выполнен'}
-                        >
-                          {isCompleted ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-slate-300 hover:text-amber-500" />
+                        <div className="w-full h-full flex items-center justify-center gap-0.5 px-0.5">
+                          {validationErrors.length > 0 && (
+                            <span
+                              title={`Внимание! Заказ не заполнен:\n• ${validationErrors.join('\n• ')}`}
+                              className="text-amber-500 hover:text-amber-600 cursor-help flex items-center justify-center"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                            </span>
                           )}
-                        </button>
+
+                          <button
+                            className="flex items-center justify-center cursor-pointer p-0.5"
+                            onClick={() => {
+                              if (!isCompleted) {
+                                if (validationErrors.length > 0) {
+                                  alert(
+                                    `Нельзя перевести заказ в статус "Выполнен"!\n\nНеобходимо дозаполнить следующие графы:\n• ` +
+                                      validationErrors.join('\n• ')
+                                  )
+                                  return
+                                }
+                                onUpdateOrder({ ...order, status: 'completed' }, `Смена статуса заказа #${order.id} на completed`)
+                              } else {
+                                onUpdateOrder({ ...order, status: 'active' }, `Смена статуса заказа #${order.id} на active`)
+                              }
+                            }}
+                            title={
+                              isCompleted
+                                ? 'Пометить как В работе'
+                                : validationErrors.length > 0
+                                ? `Внимание! Не заполнены графы:\n• ${validationErrors.join('\n• ')}\n(Нельзя перевести в "Выполнен")`
+                                : 'Пометить как Выполнен'
+                            }
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Circle className={`w-4 h-4 ${validationErrors.length > 0 ? 'text-amber-400 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`} />
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       {/* Editable Date */}
@@ -520,21 +619,18 @@ export default function OrdersTab({
                         />
                       </td>
 
-                      {/* Editable Client */}
+                      {/* Editable Client with Search Combobox */}
                       <td className={`sheet-cell p-0 ${isCellActive('clientId') ? 'sheet-cell-active' : ''}`}>
-                        <select
+                        <ClientSearchSelect
                           id={`cell-${order.id}-clientId`}
                           value={order.clientId || ''}
+                          clients={clients}
                           onFocus={() => setActiveCell({ oid: order.id, field: 'clientId' })}
                           onKeyDown={e => handleKeyDown(e, order.id, 'clientId')}
-                          onChange={e => onUpdateOrder({ ...order, clientId: e.target.value }, `Изменение клиента заказа #${order.id}`)}
-                          className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold"
-                        >
-                          <option value="">-- Выберите --</option>
-                          {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                          onChange={newClientId => {
+                            onUpdateOrder({ ...order, clientId: newClientId }, `Изменение клиента заказа #${order.id}`)
+                          }}
+                        />
                       </td>
 
                       {/* Editable Product Name */}
@@ -553,7 +649,7 @@ export default function OrdersTab({
                             onUpdateOrder({ ...order, productName: e.target.value }, `Изменение продукции заказа #${order.id}`)
                           }}
                           className="w-full h-full px-1 text-xs outline-none bg-transparent"
-                          placeholder="Новый заказ"
+                          placeholder="Номенклатура / продукция..."
                         />
                       </td>
 
@@ -572,6 +668,7 @@ export default function OrdersTab({
                               ? (order.saleFormula || (order.saleAmount ? String(order.saleAmount) : ''))
                               : (order.saleAmount ? Number(order.saleAmount).toLocaleString('ru-RU') : '')
                           }
+                          placeholder="0 ₽"
                           title={order.saleFormula ? `Формула: ${order.saleFormula}` : undefined}
                           onFocus={() => {
                             setActiveCell({ oid: order.id, field: 'saleAmount' })
@@ -627,9 +724,11 @@ export default function OrdersTab({
                               paymentNote: isNewCash ? '' : order.paymentNote
                             }, `Изменение плательщика заказа #${order.id}`)
                           }}
-                          className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer"
+                          className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
+                            !order.paymentReceiverId ? 'text-red-500 dark:text-red-400' : ''
+                          }`}
                         >
-                          <option value="">-- Выберите --</option>
+                          <option value="">-- Выберите счет --</option>
                           {payers.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
@@ -789,9 +888,11 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: e.target.value } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
                                             }}
-                                            className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold"
+                                            className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
+                                              !cr.contractorId ? 'text-red-500 dark:text-red-400' : ''
+                                            }`}
                                           >
-                                            <option value="">-- Выберите --</option>
+                                            <option value="">-- Выберите подрядчика --</option>
                                             {contractors.map(c => (
                                               <option key={c.id} value={c.id}>{c.name}</option>
                                             ))}
@@ -835,7 +936,7 @@ export default function OrdersTab({
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
                                             }}
                                             className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono text-[#b91c1c]"
-                                            placeholder=""
+                                            placeholder="0 ₽ (укажите сумму)"
                                           />
                                         </td>
 
@@ -852,9 +953,11 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
                                             }}
-                                            className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer"
+                                            className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
+                                              !cr.payerId ? 'text-red-500 dark:text-red-400' : ''
+                                            }`}
                                           >
-                                            <option value="">-- Выберите --</option>
+                                            <option value="">-- Выберите плательщика --</option>
                                             {payers.map(p => (
                                               <option key={p.id} value={p.id}>{p.name}</option>
                                             ))}

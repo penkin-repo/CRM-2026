@@ -219,8 +219,21 @@ html.dark .sheet-cell select option {
   color: #f1f5f9 !important;
 }
 
-html.dark .sheet-cell input::placeholder {
-  color: #64748b !important;
+/* Placeholder styling: Light red for unfilled cells / empty inputs */
+.sheet-cell input::placeholder,
+.sheet-cell textarea::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: #ef4444 !important;
+  opacity: 0.8 !important;
+}
+
+html.dark .sheet-cell input::placeholder,
+html.dark .sheet-cell textarea::placeholder,
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #f87171 !important;
+  opacity: 0.85 !important;
 }
 
 /* Active cell highlight in dark mode */

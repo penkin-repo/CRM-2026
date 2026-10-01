@@ -162,11 +162,23 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     const newOrd: Order = {
       id,
       date: new Date().toISOString().slice(0, 10),
-      clientId: clients[0]?.id || '',
-      productName: 'Новый заказ',
-      contractors: [],
+      clientId: '',
+      productName: '',
+      contractors: [
+        {
+          id: 'cr_' + Math.random().toString(36).slice(2, 7),
+          contractorId: '',
+          description: '',
+          costFormula: '',
+          costValue: 0,
+          payerId: '',
+          paid: false,
+          reconciled: false,
+          note: ''
+        }
+      ],
       saleAmount: 0,
-      paymentReceiverId: payers[0]?.id || '',
+      paymentReceiverId: '',
       paymentNote: '',
       paymentReceived: false,
       status: 'active',

@@ -26,6 +26,6 @@ export function calcOrderTotals(order: { contractors: { costValue: number }[], s
   const sale = Math.round(Number(order.saleAmount)||0)
   const profit = Math.round(sale - costs)
   const rent = sale ? profit / sale * 100 : 0
-  return { costs, profit, rent }
+  return { costs, sale, profit, rent }
 }
 
