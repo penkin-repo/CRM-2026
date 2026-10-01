@@ -13,12 +13,14 @@ import {
   Eye,
   FileSpreadsheet,
   Check,
-  X
+  X,
+  Images
 } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
 import AiOrderModal from './AiOrderModal'
 import ClientSearchSelect from './ClientSearchSelect'
 import ContractorSearchSelect from './ContractorSearchSelect'
+import { ScreenshotBoardModal } from './ScreenshotBoardModal'
 import { formatOrderForGoogleSheets } from '../utils/googleSheetsExport'
 
 interface OrdersTabProps {
@@ -88,6 +90,7 @@ export default function OrdersTab({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [copiedGoogleId, setCopiedGoogleId] = useState<string | null>(null)
   const [googlePreviewOrder, setGooglePreviewOrder] = useState<{ order: Order; idx: number } | null>(null)
+  const [isScreenshotBoardOpen, setIsScreenshotBoardOpen] = useState(false)
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
 
   // Copy order formatted as Google Sheets row (12 columns tab-separated)
@@ -464,6 +467,14 @@ export default function OrdersTab({
           onClick={() => setIsAiModalOpen(true)}
         >
           <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" /> ✨ ИИ Помощник
+        </button>
+
+        <button
+          className="bg-white hover:bg-[#fff9d6] text-[#1c1d1f] border border-[#d9a800] rounded px-3 py-1 text-xs font-bold cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1.5"
+          onClick={() => setIsScreenshotBoardOpen(true)}
+          title="Открыть доску для скриншотов"
+        >
+          <Images className="w-3.5 h-3.5 text-[#d9a800]" /> 🖼️ Доска скриншотов
         </button>
 
         <button
@@ -1248,6 +1259,12 @@ export default function OrdersTab({
           <span>✓ Заказ скопирован для Google Таблицы! Нажмите <b>Ctrl + V</b> в таблице</span>
         </div>
       )}
+
+      {/* Screenshot Board Modal */}
+      <ScreenshotBoardModal
+        isOpen={isScreenshotBoardOpen}
+        onClose={() => setIsScreenshotBoardOpen(false)}
+      />
     </div>
   )
 }
