@@ -17,6 +17,7 @@ import {
 import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
 import AiOrderModal from './AiOrderModal'
 import ClientSearchSelect from './ClientSearchSelect'
+import ContractorSearchSelect from './ContractorSearchSelect'
 import { formatOrderForGoogleSheets } from '../utils/googleSheetsExport'
 
 interface OrdersTabProps {
@@ -105,7 +106,10 @@ export default function OrdersTab({
     if (activeCell.contractorRowId) {
       const cr = (order.contractors || []).find(r => r.id === activeCell.contractorRowId)
       if (!cr) return
-      if (activeCell.field === 'crDescription') {
+      if (activeCell.field === 'crContractorId') {
+        const co = contractors.find(c => c.id === cr.contractorId)
+        setEditBar(co ? co.name : '')
+      } else if (activeCell.field === 'crDescription') {
         setEditBar(cr.description || '')
       } else if (activeCell.field === 'crCostFormula') {
         setEditBar(cr.costFormula || (cr.costValue ? String(cr.costValue) : ''))
@@ -921,23 +925,18 @@ export default function OrdersTab({
 
                                     return (
                                       <tr key={cr.id} className="hover:bg-[#fff9d6] text-xs">
-                                        {/* Contractor Select */}
-                                        <td className="sheet-cell p-0">
-                                          <select
+                                        {/* Contractor Search Select */}
+                                        <td className={`sheet-cell p-0 ${isCrActive('crContractorId') ? 'sheet-cell-active' : ''}`}>
+                                          <ContractorSearchSelect
+                                            id={`cell-${order.id}-cr-${cr.id}-contractorId`}
                                             value={cr.contractorId || ''}
-                                            onChange={e => {
-                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: e.target.value } : r)
+                                            contractors={contractors}
+                                            onFocus={() => setActiveCell({ oid: order.id, field: 'crContractorId', contractorRowId: cr.id })}
+                                            onChange={newContractorId => {
+                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: newContractorId } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
                                             }}
-                                            className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
-                                              !cr.contractorId ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'
-                                            }`}
-                                          >
-                                            <option value="">-- Выберите подрядчика --</option>
-                                            {contractors.map(c => (
-                                              <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                          </select>
+                                          />
                                         </td>
 
                                         {/* Work Description Input (Syncs with Top Edit-Bar) */}
