@@ -219,21 +219,42 @@ html.dark .sheet-cell select option {
   color: #f1f5f9 !important;
 }
 
-/* Placeholder styling: Light red for unfilled cells / empty inputs */
-.sheet-cell input::placeholder,
-.sheet-cell textarea::placeholder,
+/* Default placeholder styling - light gray across the app */
 input::placeholder,
-textarea::placeholder {
-  color: #ef4444 !important;
-  opacity: 0.8 !important;
+textarea::placeholder,
+.sheet-cell input::placeholder,
+.sheet-cell textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 0.75 !important;
 }
 
-html.dark .sheet-cell input::placeholder,
-html.dark .sheet-cell textarea::placeholder,
 html.dark input::placeholder,
-html.dark textarea::placeholder {
+html.dark textarea::placeholder,
+html.dark .sheet-cell input::placeholder,
+html.dark .sheet-cell textarea::placeholder {
+  color: #64748b !important;
+  opacity: 0.75 !important;
+}
+
+/* Explicit unfilled highlight only where required in Orders */
+.placeholder-unfilled::placeholder,
+input.placeholder-unfilled::placeholder {
+  color: #ef4444 !important;
+  opacity: 0.9 !important;
+}
+
+html.dark .placeholder-unfilled::placeholder,
+html.dark input.placeholder-unfilled::placeholder {
   color: #f87171 !important;
-  opacity: 0.85 !important;
+  opacity: 0.9 !important;
+}
+
+.client-selected-text {
+  color: #1c1d1f !important;
+}
+
+html.dark .client-selected-text {
+  color: #f8fafc !important;
 }
 
 /* Active cell highlight in dark mode */

@@ -129,6 +129,9 @@ export default function OrdersTab({
     if (!order.paymentReceiverId) {
       errors.push('Счет получателя не выбран')
     }
+    if (!order.paymentReceived) {
+      errors.push('Оплата заказа от клиента не получена (нет отметки)')
+    }
 
     const crs = order.contractors || []
     if (crs.length === 0) {
@@ -136,17 +139,21 @@ export default function OrdersTab({
     } else {
       crs.forEach((cr, i) => {
         const num = i + 1
+        const coName = contractors.find(c => c.id === cr.contractorId)?.name || 'исполнитель'
         if (!cr.contractorId) {
           errors.push(`Подрядчик №${num}: не выбран исполнитель`)
         }
         if (!cr.description || !cr.description.trim()) {
-          errors.push(`Подрядчик №${num}: не заполнено описание работы`)
+          errors.push(`Подрядчик №${num} (${coName}): не заполнено описание работы`)
         }
         if (!cr.costValue || cr.costValue <= 0) {
-          errors.push(`Подрядчик №${num}: не указана стоимость/затраты`)
+          errors.push(`Подрядчик №${num} (${coName}): не указана стоимость/затраты`)
         }
         if (!cr.payerId) {
-          errors.push(`Подрядчик №${num}: не выбран плательщик`)
+          errors.push(`Подрядчик №${num} (${coName}): не выбран плательщик`)
+        }
+        if (!cr.paid) {
+          errors.push(`Подрядчик №${num} (${coName}): оплата не произведена (нет отметки)`)
         }
       })
     }
@@ -648,7 +655,7 @@ export default function OrdersTab({
                             setEditBar(e.target.value)
                             onUpdateOrder({ ...order, productName: e.target.value }, `Изменение продукции заказа #${order.id}`)
                           }}
-                          className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                          className="w-full h-full px-1 text-xs outline-none bg-transparent placeholder-unfilled"
                           placeholder="Номенклатура / продукция..."
                         />
                       </td>
@@ -691,7 +698,7 @@ export default function OrdersTab({
                             }
                             onUpdateOrder(updated, `Изменение суммы реализации заказа #${order.id}`)
                           }}
-                          className="w-full h-full px-1 text-xs text-right font-bold outline-none bg-transparent text-[#1e40af]"
+                          className="w-full h-full px-1 text-xs text-right font-bold outline-none bg-transparent text-[#1e40af] placeholder-unfilled"
                         />
                       </td>
 
@@ -914,7 +921,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent"
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent placeholder-unfilled"
                                             placeholder="Описание работы..."
                                           />
                                         </td>
@@ -935,7 +942,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
                                             }}
-                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono text-[#b91c1c]"
+                                            className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-[#1c1d1f] dark:text-[#f8fafc] placeholder-unfilled"
                                             placeholder="0 ₽ (укажите сумму)"
                                           />
                                         </td>

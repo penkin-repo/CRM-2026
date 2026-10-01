@@ -178,7 +178,7 @@ export default function ClientSearchSelect({
             }}
             onKeyDown={handleInputKeyDown}
             placeholder="Поиск по названию или телефону..."
-            className="w-full h-full text-xs font-semibold outline-none bg-transparent text-[#1c1d1f] dark:text-[#f8fafc] placeholder:text-rose-400"
+            className="w-full h-full text-xs font-semibold outline-none bg-transparent client-selected-text placeholder-unfilled"
           />
           {searchQuery && (
             <button
@@ -211,7 +211,7 @@ export default function ClientSearchSelect({
           title={selectedClient ? selectedClient.name : 'Выберите контрагента'}
         >
           {selectedClient ? (
-            <span className="text-xs font-bold text-[#1c1d1f] dark:text-[#f8fafc] truncate">
+            <span className="text-xs font-bold client-selected-text truncate">
               {selectedClient.name}
             </span>
           ) : (

@@ -1,3 +1,3 @@
-export const APP_VERSION = 'v8.8.4'
+export const APP_VERSION = 'v8.8.5'
 export const APP_BUILD = '2026.10.02'
 export const APP_NAME = 'A29 CRM'
