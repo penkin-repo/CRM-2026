@@ -42,6 +42,7 @@ interface OrdersTabProps {
   onCopyOrder: (order: Order) => void
   onDeleteOrder: (id: string) => void
   onUpdateOrder: (updated: Order, actionDesc: string) => void
+  onCommitOrder?: (updated: Order, actionDesc: string) => void
   onConfirmAiOrder: (
     newOrder: Order,
     newClientsToCreate: Client[],
@@ -78,8 +79,17 @@ export default function OrdersTab({
   onCopyOrder,
   onDeleteOrder,
   onUpdateOrder,
+  onCommitOrder,
   onConfirmAiOrder
 }: OrdersTabProps) {
+  const commit = (order: Order, desc: string) => {
+    if (onCommitOrder) {
+      onCommitOrder(order, desc)
+    } else {
+      onUpdateOrder(order, desc)
+    }
+  }
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [activeCell, setActiveCell] = useState<{
     oid: string
@@ -539,6 +549,17 @@ export default function OrdersTab({
               onUpdateOrder(updated, `Правка поля ${activeCell.field} в заказе #${targetOrder.id}`)
             }
           }}
+          onBlur={() => {
+            if (!activeCell) return
+            const targetOrder = orders.find(o => o.id === activeCell.oid)
+            if (targetOrder) commit(targetOrder, `Правка поля ${activeCell.field} в заказе #${targetOrder.id}`)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           placeholder="Ввод текста или формулы (начинается с =)..."
         />
       </div>
@@ -621,9 +642,13 @@ export default function OrdersTab({
                                   )
                                   return
                                 }
-                                onUpdateOrder({ ...order, status: 'completed' }, `Смена статуса заказа #${order.id} на completed`)
+                                const updated = { ...order, status: 'completed' as const }
+                                onUpdateOrder(updated, `Смена статуса заказа #${order.id} на completed`)
+                                commit(updated, `Смена статуса заказа #${order.id} на completed`)
                               } else {
-                                onUpdateOrder({ ...order, status: 'active' }, `Смена статуса заказа #${order.id} на active`)
+                                const updated = { ...order, status: 'active' as const }
+                                onUpdateOrder(updated, `Смена статуса заказа #${order.id} на active`)
+                                commit(updated, `Смена статуса заказа #${order.id} на active`)
                               }
                             }}
                             title={
@@ -651,7 +676,11 @@ export default function OrdersTab({
                           value={order.date || ''}
                           onFocus={() => setActiveCell({ oid: order.id, field: 'date' })}
                           onKeyDown={e => handleKeyDown(e, order.id, 'date')}
-                          onChange={e => onUpdateOrder({ ...order, date: e.target.value }, `Изменение даты заказа #${order.id}`)}
+                          onChange={e => {
+                            const updated = { ...order, date: e.target.value }
+                            onUpdateOrder(updated, `Изменение даты заказа #${order.id}`)
+                            commit(updated, `Изменение даты заказа #${order.id}`)
+                          }}
                           className="w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-mono"
                         />
                       </td>
@@ -665,7 +694,9 @@ export default function OrdersTab({
                           onFocus={() => setActiveCell({ oid: order.id, field: 'clientId' })}
                           onKeyDown={e => handleKeyDown(e, order.id, 'clientId')}
                           onChange={newClientId => {
-                            onUpdateOrder({ ...order, clientId: newClientId }, `Изменение клиента заказа #${order.id}`)
+                            const updated = { ...order, clientId: newClientId }
+                            onUpdateOrder(updated, `Изменение клиента заказа #${order.id}`)
+                            commit(updated, `Изменение клиента заказа #${order.id}`)
                           }}
                         />
                       </td>
@@ -680,11 +711,15 @@ export default function OrdersTab({
                             setActiveCell({ oid: order.id, field: 'productName' })
                             setEditBar(order.productName || '')
                           }}
-                          onKeyDown={e => handleKeyDown(e, order.id, 'productName')}
+                          onKeyDown={e => {
+                            handleKeyDown(e, order.id, 'productName')
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                          }}
                           onChange={e => {
                             setEditBar(e.target.value)
                             onUpdateOrder({ ...order, productName: e.target.value }, `Изменение продукции заказа #${order.id}`)
                           }}
+                          onBlur={() => commit(order, `Изменение продукции заказа #${order.id}`)}
                           className="w-full h-full px-1 text-xs outline-none bg-transparent placeholder-unfilled"
                           placeholder="Номенклатура / продукция..."
                         />
@@ -711,7 +746,10 @@ export default function OrdersTab({
                             setActiveCell({ oid: order.id, field: 'saleAmount' })
                             setEditBar(order.saleFormula || String(order.saleAmount || ''))
                           }}
-                          onKeyDown={e => handleKeyDown(e, order.id, 'saleAmount')}
+                          onKeyDown={e => {
+                            handleKeyDown(e, order.id, 'saleAmount')
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                          }}
                           onChange={e => {
                             const val = e.target.value
                             setEditBar(val)
@@ -728,6 +766,7 @@ export default function OrdersTab({
                             }
                             onUpdateOrder(updated, `Изменение суммы реализации заказа #${order.id}`)
                           }}
+                          onBlur={() => commit(order, `Изменение суммы реализации заказа #${order.id}`)}
                           className="w-full h-full px-1 text-xs text-right font-bold outline-none bg-transparent text-[#1e40af] placeholder-unfilled"
                         />
                       </td>
@@ -755,11 +794,13 @@ export default function OrdersTab({
                           onChange={e => {
                             const newPayerId = e.target.value
                             const isNewCash = isCashPayer(newPayerId)
-                            onUpdateOrder({
+                            const updated = {
                               ...order,
                               paymentReceiverId: newPayerId,
                               paymentNote: isNewCash ? '' : order.paymentNote
-                            }, `Изменение плательщика заказа #${order.id}`)
+                            }
+                            onUpdateOrder(updated, `Изменение плательщика заказа #${order.id}`)
+                            commit(updated, `Изменение плательщика заказа #${order.id}`)
                           }}
                           className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
                             !order.paymentReceiverId ? 'text-red-500 dark:text-red-400' : ''
@@ -786,11 +827,15 @@ export default function OrdersTab({
                               setActiveCell({ oid: order.id, field: 'paymentNote' })
                               setEditBar(order.paymentNote || '')
                             }}
-                            onKeyDown={e => handleKeyDown(e, order.id, 'paymentNote')}
+                            onKeyDown={e => {
+                              handleKeyDown(e, order.id, 'paymentNote')
+                              if (e.key === 'Enter') e.currentTarget.blur()
+                            }}
                             onChange={e => {
                               setEditBar(e.target.value)
                               onUpdateOrder({ ...order, paymentNote: e.target.value }, `Изменение № счета заказа #${order.id}`)
                             }}
+                            onBlur={() => commit(order, `Изменение № счета заказа #${order.id}`)}
                             className="w-full h-full px-1 text-xs outline-none bg-transparent"
                           />
                         )}
@@ -801,7 +846,11 @@ export default function OrdersTab({
                         <input
                           type="checkbox"
                           checked={!!order.paymentReceived}
-                          onChange={e => onUpdateOrder({ ...order, paymentReceived: e.target.checked }, `Изменение оплаты заказа #${order.id}`)}
+                          onChange={e => {
+                            const updated = { ...order, paymentReceived: e.target.checked }
+                            onUpdateOrder(updated, `Изменение оплаты заказа #${order.id}`)
+                            commit(updated, `Изменение оплаты заказа #${order.id}`)
+                          }}
                           className="cursor-pointer accent-[#ffcc00]"
                         />
                       </td>
@@ -816,11 +865,15 @@ export default function OrdersTab({
                             setActiveCell({ oid: order.id, field: 'note' })
                             setEditBar(order.note || '')
                           }}
-                          onKeyDown={e => handleKeyDown(e, order.id, 'note')}
+                          onKeyDown={e => {
+                            handleKeyDown(e, order.id, 'note')
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                          }}
                           onChange={e => {
                             setEditBar(e.target.value)
                             onUpdateOrder({ ...order, note: e.target.value }, `Изменение комментария заказа #${order.id}`)
                           }}
+                          onBlur={() => commit(order, `Изменение комментария заказа #${order.id}`)}
                           className="w-full h-full px-1 text-xs outline-none bg-transparent"
                           placeholder="Комментарий..."
                         />
@@ -911,7 +964,9 @@ export default function OrdersTab({
                                     note: ''
                                   }
                                   const updatedContractors = [...(order.contractors || []), newRow]
-                                  onUpdateOrder({ ...order, contractors: updatedContractors }, `Добавлен новый подрядчик в заказ #${order.id}`)
+                                  const updated = { ...order, contractors: updatedContractors }
+                                  onUpdateOrder(updated, `Добавлен новый подрядчик в заказ #${order.id}`)
+                                  commit(updated, `Добавлен новый подрядчик в заказ #${order.id}`)
                                 }}
                               >
                                 <Plus className="w-3 h-3" /> + Добавить подрядчика
@@ -957,7 +1012,9 @@ export default function OrdersTab({
                                             onFocus={() => setActiveCell({ oid: order.id, field: 'crContractorId', contractorRowId: cr.id })}
                                             onChange={newContractorId => {
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, contractorId: newContractorId } : r)
-                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен подрядчик`)
+                                              const updated = { ...order, contractors: updatedRows }
+                                              onUpdateOrder(updated, `Обновлен подрядчик`)
+                                              commit(updated, `Обновлен подрядчик`)
                                             }}
                                           />
                                         </td>
@@ -971,12 +1028,16 @@ export default function OrdersTab({
                                               setActiveCell({ oid: order.id, field: 'crDescription', contractorRowId: cr.id })
                                               setEditBar(cr.description || '')
                                             }}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') e.currentTarget.blur()
+                                            }}
                                             onChange={e => {
                                               const val = e.target.value
                                               setEditBar(val)
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, description: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено описание подрядчика`)
                                             }}
+                                            onBlur={() => commit(order, 'Обновлено описание подрядчика')}
                                             className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f] placeholder-unfilled"
                                             placeholder="Описание работы..."
                                           />
@@ -991,6 +1052,9 @@ export default function OrdersTab({
                                               setActiveCell({ oid: order.id, field: 'crCostFormula', contractorRowId: cr.id })
                                               setEditBar(cr.costFormula || (cr.costValue ? String(cr.costValue) : ''))
                                             }}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') e.currentTarget.blur()
+                                            }}
                                             onChange={e => {
                                               const val = e.target.value
                                               setEditBar(val)
@@ -998,6 +1062,7 @@ export default function OrdersTab({
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, costFormula: val, costValue: calcVal } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена формула подрядчика`)
                                             }}
+                                            onBlur={() => commit(order, 'Обновлена формула подрядчика')}
                                             className="w-full h-full px-1 text-xs text-right outline-none bg-transparent font-mono font-bold text-[#1c1d1f] contractor-formula-input placeholder-unfilled"
                                             placeholder="0 ₽ (укажите сумму)"
                                           />
@@ -1014,7 +1079,9 @@ export default function OrdersTab({
                                             value={cr.payerId || ''}
                                             onChange={e => {
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
-                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлен плательщик подрядчика`)
+                                              const updated = { ...order, contractors: updatedRows }
+                                              onUpdateOrder(updated, `Обновлен плательщик подрядчика`)
+                                              commit(updated, `Обновлен плательщик подрядчика`)
                                             }}
                                             className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
                                               !cr.payerId ? 'text-red-500' : 'text-[#1c1d1f]'
@@ -1034,7 +1101,9 @@ export default function OrdersTab({
                                             checked={!!cr.paid}
                                             onChange={e => {
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, paid: e.target.checked } : r)
-                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена оплата подрядчика`)
+                                              const updated = { ...order, contractors: updatedRows }
+                                              onUpdateOrder(updated, `Обновлена оплата подрядчика`)
+                                              commit(updated, `Обновлена оплата подрядчика`)
                                             }}
                                             className="cursor-pointer accent-[#ffcc00]"
                                           />
@@ -1047,7 +1116,9 @@ export default function OrdersTab({
                                             checked={!!cr.reconciled}
                                             onChange={e => {
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, reconciled: e.target.checked } : r)
-                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлена сверка подрядчика`)
+                                              const updated = { ...order, contractors: updatedRows }
+                                              onUpdateOrder(updated, `Обновлена сверка подрядчика`)
+                                              commit(updated, `Обновлена сверка подрядчика`)
                                             }}
                                             className="cursor-pointer accent-[#ffcc00]"
                                           />
@@ -1062,12 +1133,16 @@ export default function OrdersTab({
                                               setActiveCell({ oid: order.id, field: 'crNote', contractorRowId: cr.id })
                                               setEditBar(cr.note || '')
                                             }}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') e.currentTarget.blur()
+                                            }}
                                             onChange={e => {
                                               const val = e.target.value
                                               setEditBar(val)
                                               const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, note: val } : r)
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
                                             }}
+                                            onBlur={() => commit(order, 'Обновлено примечание подрядчика')}
                                             className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f]"
                                             placeholder="Примечание..."
                                           />
@@ -1079,7 +1154,9 @@ export default function OrdersTab({
                                             className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer"
                                             onClick={() => {
                                               const updatedRows = (order.contractors || []).filter(r => r.id !== cr.id)
-                                              onUpdateOrder({ ...order, contractors: updatedRows }, `Удален подрядчик из заказа #${order.id}`)
+                                              const updated = { ...order, contractors: updatedRows }
+                                              onUpdateOrder(updated, `Удален подрядчик из заказа #${order.id}`)
+                                              commit(updated, `Удален подрядчик из заказа #${order.id}`)
                                             }}
                                             title="Удалить подрядчика"
                                           >

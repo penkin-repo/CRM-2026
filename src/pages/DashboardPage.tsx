@@ -33,11 +33,11 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     historyRef.current = history
   }, [history])
 
-  // Debounce timers to avoid spamming Turso and history on every keystroke
-  const contractorTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  const clientTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  const payerTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  const orderTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  // Track last committed JSON snapshot of each entity to prevent redundant Turso calls on blur
+  const lastSavedOrders = useRef<Map<string, string>>(new Map())
+  const lastSavedClients = useRef<Map<string, string>>(new Map())
+  const lastSavedContractors = useRef<Map<string, string>>(new Map())
+  const lastSavedPayers = useRef<Map<string, string>>(new Map())
 
   // Filter States with localStorage persistence
   const getSavedFilters = () => {
@@ -119,9 +119,19 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       })
 
       setOrders(healedOrders)
-      setClients(Array.isArray(clData) ? clData : [])
-      setContractors(Array.isArray(coData) ? coData : [])
-      setPayers(Array.isArray(pyData) ? pyData : [])
+      healedOrders.forEach(o => lastSavedOrders.current.set(o.id, JSON.stringify(o)))
+
+      const cl = Array.isArray(clData) ? clData : []
+      setClients(cl)
+      cl.forEach((c: any) => lastSavedClients.current.set(c.id, JSON.stringify(c)))
+
+      const co = Array.isArray(coData) ? coData : []
+      setContractors(co)
+      co.forEach((coItem: any) => lastSavedContractors.current.set(coItem.id, JSON.stringify(coItem)))
+
+      const py = Array.isArray(pyData) ? pyData : []
+      setPayers(py)
+      py.forEach((pItem: any) => lastSavedPayers.current.set(pItem.id, JSON.stringify(pItem)))
       if (Array.isArray(histData)) {
         const syncedHist = histData.map(h => ({ ...h, synced: true }))
         setHistory(syncedHist)
@@ -311,41 +321,24 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     logHistory('Удаление заказа', `Удален заказ #${id}`, { clients, contractors, payers, orders: updated })
   }
 
-  const handleUpdateOrder = (updated: Order, logDescription?: string) => {
+  const handleUpdateOrder = (updated: Order) => {
+    // Only update local state for real-time reactivity without hitting Turso
+    setOrders(orders.map(o => o.id === updated.id ? updated : o))
+  }
+
+  const handleCommitOrder = (updated: Order, logDescription?: string) => {
     const updatedOrders = orders.map(o => o.id === updated.id ? updated : o)
     setOrders(updatedOrders)
 
-    // Check if this is continuous text typing (product, note, comment, formula, etc.)
-    const isTextEdit = logDescription && (
-      logDescription.includes('Правка поля') ||
-      logDescription.includes('Изменение продукции') ||
-      logDescription.includes('Изменение комментария') ||
-      logDescription.includes('Изменение № счета') ||
-      logDescription.includes('Обновлено описание') ||
-      logDescription.includes('Обновлена формула') ||
-      logDescription.includes('Обновлено примечание')
-    )
+    const prevJson = lastSavedOrders.current.get(updated.id)
+    const nextJson = JSON.stringify(updated)
+    // If value didn't change, 0 network requests
+    if (prevJson === nextJson) return
 
-    if (isTextEdit) {
-      if (orderTimers.current.has(updated.id)) {
-        clearTimeout(orderTimers.current.get(updated.id)!)
-      }
-      const timer = setTimeout(() => {
-        orderTimers.current.delete(updated.id)
-        api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
-        const desc = logDescription || `Редактирование заказа #${updated.id}`
-        logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
-      }, 700)
-      orderTimers.current.set(updated.id, timer)
-    } else {
-      if (orderTimers.current.has(updated.id)) {
-        clearTimeout(orderTimers.current.get(updated.id)!)
-        orderTimers.current.delete(updated.id)
-      }
-      api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
-      const desc = logDescription || `Редактирование заказа #${updated.id}`
-      logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
-    }
+    lastSavedOrders.current.set(updated.id, nextJson)
+    api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
+    const desc = logDescription || `Редактирование заказа #${updated.id}`
+    logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
   }
 
   const handleConfirmAiOrder = async (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => {
@@ -417,18 +410,20 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   }
 
   const handleUpdateClient = (c: Client) => {
+    setClients(clients.map(item => item.id === c.id ? c : item))
+  }
+
+  const handleCommitClient = (c: Client) => {
     const updatedClients = clients.map(item => item.id === c.id ? c : item)
     setClients(updatedClients)
 
-    if (clientTimers.current.has(c.id)) {
-      clearTimeout(clientTimers.current.get(c.id)!)
-    }
-    const timer = setTimeout(() => {
-      clientTimers.current.delete(c.id)
-      api.upsertClient(c).catch(() => {})
-      logHistory('Правка клиента', `Изменены данные клиента ${c.name}`, { clients: updatedClients, contractors, payers, orders })
-    }, 700)
-    clientTimers.current.set(c.id, timer)
+    const prevJson = lastSavedClients.current.get(c.id)
+    const nextJson = JSON.stringify(c)
+    if (prevJson === nextJson) return
+
+    lastSavedClients.current.set(c.id, nextJson)
+    api.upsertClient(c).catch(() => {})
+    logHistory('Правка клиента', `Изменены данные клиента ${c.name}`, { clients: updatedClients, contractors, payers, orders })
   }
 
   const handleDeleteClient = (id: string) => {
@@ -455,18 +450,20 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   }
 
   const handleUpdateContractor = (co: Contractor) => {
+    setContractors(contractors.map(item => item.id === co.id ? co : item))
+  }
+
+  const handleCommitContractor = (co: Contractor) => {
     const updatedContractors = contractors.map(item => item.id === co.id ? co : item)
     setContractors(updatedContractors)
 
-    if (contractorTimers.current.has(co.id)) {
-      clearTimeout(contractorTimers.current.get(co.id)!)
-    }
-    const timer = setTimeout(() => {
-      contractorTimers.current.delete(co.id)
-      api.upsertContractor(co).catch(() => {})
-      logHistory('Правка подрядчика', `Изменены данные подрядчика ${co.name}`, { clients, contractors: updatedContractors, payers, orders })
-    }, 700)
-    contractorTimers.current.set(co.id, timer)
+    const prevJson = lastSavedContractors.current.get(co.id)
+    const nextJson = JSON.stringify(co)
+    if (prevJson === nextJson) return
+
+    lastSavedContractors.current.set(co.id, nextJson)
+    api.upsertContractor(co).catch(() => {})
+    logHistory('Правка подрядчика', `Изменены данные подрядчика ${co.name}`, { clients, contractors: updatedContractors, payers, orders })
   }
 
   const handleDeleteContractor = (id: string) => {
@@ -492,18 +489,20 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   }
 
   const handleUpdatePayer = (p: Payer) => {
+    setPayers(payers.map(item => item.id === p.id ? p : item))
+  }
+
+  const handleCommitPayer = (p: Payer) => {
     const updatedPayers = payers.map(item => item.id === p.id ? p : item)
     setPayers(updatedPayers)
 
-    if (payerTimers.current.has(p.id)) {
-      clearTimeout(payerTimers.current.get(p.id)!)
-    }
-    const timer = setTimeout(() => {
-      payerTimers.current.delete(p.id)
-      api.upsertPayer(p).catch(() => {})
-      logHistory('Правка плательщика', `Изменены данные плательщика ${p.name}`, { clients, contractors, payers: updatedPayers, orders })
-    }, 700)
-    payerTimers.current.set(p.id, timer)
+    const prevJson = lastSavedPayers.current.get(p.id)
+    const nextJson = JSON.stringify(p)
+    if (prevJson === nextJson) return
+
+    lastSavedPayers.current.set(p.id, nextJson)
+    api.upsertPayer(p).catch(() => {})
+    logHistory('Правка плательщика', `Изменены данные плательщика ${p.name}`, { clients, contractors, payers: updatedPayers, orders })
   }
 
   const handleDeletePayer = (id: string) => {
@@ -647,6 +646,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           onCopyOrder={handleCopyOrder}
           onDeleteOrder={handleDeleteOrder}
           onUpdateOrder={handleUpdateOrder}
+          onCommitOrder={handleCommitOrder}
           onConfirmAiOrder={handleConfirmAiOrder}
         />
       )}
@@ -656,6 +656,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           clients={clients}
           onAddClient={handleAddClient}
           onUpdateClient={handleUpdateClient}
+          onCommitClient={handleCommitClient}
           onDeleteClient={handleDeleteClient}
         />
       )}
@@ -665,6 +666,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           contractors={contractors}
           onAddContractor={handleAddContractor}
           onUpdateContractor={handleUpdateContractor}
+          onCommitContractor={handleCommitContractor}
           onDeleteContractor={handleDeleteContractor}
         />
       )}
@@ -674,6 +676,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           payers={payers}
           onAddPayer={handleAddPayer}
           onUpdatePayer={handleUpdatePayer}
+          onCommitPayer={handleCommitPayer}
           onDeletePayer={handleDeletePayer}
         />
       )}
@@ -685,7 +688,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
           contractors={contractors}
           payers={payers}
           selectedMonth={selectedMonth}
-          onUpdateOrder={handleUpdateOrder}
+          onUpdateOrder={handleCommitOrder}
           onLogHistory={logHistory}
         />
       )}

@@ -6,6 +6,7 @@ interface ContractorsTabProps {
   contractors: Contractor[]
   onAddContractor: () => void
   onUpdateContractor: (contractor: Contractor) => void
+  onCommitContractor?: (contractor: Contractor) => void
   onDeleteContractor: (id: string) => void
 }
 
@@ -13,6 +14,7 @@ export default function ContractorsTab({
   contractors,
   onAddContractor,
   onUpdateContractor,
+  onCommitContractor,
   onDeleteContractor
 }: ContractorsTabProps) {
   const [activeCell, setActiveCell] = useState<{ id: string; field: keyof Contractor } | null>(null)
@@ -30,6 +32,12 @@ export default function ContractorsTab({
     const target = contractors.find(co => co.id === activeCell.id)
     if (!target) return
     onUpdateContractor({ ...target, [activeCell.field]: val })
+  }
+
+  const handleCommit = (co: Contractor) => {
+    if (onCommitContractor) {
+      onCommitContractor(co)
+    }
   }
 
   // Universal search across all contractor columns
@@ -98,6 +106,18 @@ export default function ContractorsTab({
           className="w-full min-h-[36px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] font-semibold bg-[#fffdf0] quick-property-textarea"
           value={editBar}
           onChange={e => handleEditBarChange(e.target.value)}
+          onBlur={() => {
+            if (activeCell) {
+              const target = contractors.find(c => c.id === activeCell.id)
+              if (target) handleCommit(target)
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           placeholder="Текст ячейки (поддерживает многострочный ввод)..."
         />
       </div>
@@ -134,6 +154,8 @@ export default function ContractorsTab({
                         placeholder="ФИО / Название подрядчика..."
                         onFocus={() => handleCellFocus(co, 'name')}
                         onChange={e => onUpdateContractor({ ...co, name: e.target.value })}
+                        onBlur={() => handleCommit(co)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs font-bold outline-none bg-transparent"
                       />
                     </td>
@@ -144,6 +166,8 @@ export default function ContractorsTab({
                         placeholder="Телефон..."
                         onFocus={() => handleCellFocus(co, 'phone')}
                         onChange={e => onUpdateContractor({ ...co, phone: e.target.value })}
+                        onBlur={() => handleCommit(co)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>
@@ -154,6 +178,8 @@ export default function ContractorsTab({
                         placeholder="Специализация / Комментарий..."
                         onFocus={() => handleCellFocus(co, 'note')}
                         onChange={e => onUpdateContractor({ ...co, note: e.target.value })}
+                        onBlur={() => handleCommit(co)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>

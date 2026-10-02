@@ -6,6 +6,7 @@ interface PayersTabProps {
   payers: Payer[]
   onAddPayer: () => void
   onUpdatePayer: (payer: Payer) => void
+  onCommitPayer?: (payer: Payer) => void
   onDeletePayer: (id: string) => void
 }
 
@@ -13,6 +14,7 @@ export default function PayersTab({
   payers,
   onAddPayer,
   onUpdatePayer,
+  onCommitPayer,
   onDeletePayer
 }: PayersTabProps) {
   const [activeCell, setActiveCell] = useState<{ id: string; field: keyof Payer } | null>(null)
@@ -29,6 +31,12 @@ export default function PayersTab({
     const target = payers.find(p => p.id === activeCell.id)
     if (!target) return
     onUpdatePayer({ ...target, [activeCell.field]: val })
+  }
+
+  const handleCommit = (p: Payer) => {
+    if (onCommitPayer) {
+      onCommitPayer(p)
+    }
   }
 
   return (
@@ -60,6 +68,18 @@ export default function PayersTab({
           className="w-full min-h-[36px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] font-semibold bg-[#fffdf0] quick-property-textarea"
           value={editBar}
           onChange={e => handleEditBarChange(e.target.value)}
+          onBlur={() => {
+            if (activeCell) {
+              const target = payers.find(p => p.id === activeCell.id)
+              if (target) handleCommit(target)
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           placeholder="Текст наименования счета..."
         />
       </div>
@@ -94,6 +114,8 @@ export default function PayersTab({
                         value={p.name}
                         onFocus={() => handleCellFocus(p, 'name')}
                         onChange={e => onUpdatePayer({ ...p, name: e.target.value })}
+                        onBlur={() => handleCommit(p)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs font-bold outline-none bg-transparent"
                       />
                     </td>
@@ -101,7 +123,11 @@ export default function PayersTab({
                       <select
                         value={p.type}
                         onFocus={() => handleCellFocus(p, 'type')}
-                        onChange={e => onUpdatePayer({ ...p, type: e.target.value as any })}
+                        onChange={e => {
+                          const updated = { ...p, type: e.target.value as any }
+                          onUpdatePayer(updated)
+                          handleCommit(updated)
+                        }}
                         className="w-full h-full text-xs px-2 outline-none bg-transparent cursor-pointer font-bold text-[#1c1d1f]"
                       >
                         <option value="cashless">Безналичный расчёт (требует № счета)</option>

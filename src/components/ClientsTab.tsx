@@ -6,6 +6,7 @@ interface ClientsTabProps {
   clients: Client[]
   onAddClient: () => void
   onUpdateClient: (client: Client) => void
+  onCommitClient?: (client: Client) => void
   onDeleteClient: (id: string) => void
 }
 
@@ -13,6 +14,7 @@ export default function ClientsTab({
   clients,
   onAddClient,
   onUpdateClient,
+  onCommitClient,
   onDeleteClient
 }: ClientsTabProps) {
   const [activeCell, setActiveCell] = useState<{ id: string; field: keyof Client } | null>(null)
@@ -30,6 +32,12 @@ export default function ClientsTab({
     const target = clients.find(c => c.id === activeCell.id)
     if (!target) return
     onUpdateClient({ ...target, [activeCell.field]: val })
+  }
+
+  const handleCommit = (c: Client) => {
+    if (onCommitClient) {
+      onCommitClient(c)
+    }
   }
 
   // Universal search across all client columns
@@ -108,6 +116,18 @@ export default function ClientsTab({
           className="w-full min-h-[36px] border border-[#b8bdc5] rounded p-1.5 text-xs outline-none resize-y focus:border-[#ffcc00] font-mono text-[#1c1d1f] font-semibold bg-[#fffdf0] quick-property-textarea"
           value={editBar}
           onChange={e => handleEditBarChange(e.target.value)}
+          onBlur={() => {
+            if (activeCell) {
+              const target = clients.find(c => c.id === activeCell.id)
+              if (target) handleCommit(target)
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           placeholder="Текст ячейки (поддерживает многострочный ввод)..."
         />
       </div>
@@ -146,6 +166,8 @@ export default function ClientsTab({
                         placeholder="Наименование организации / ФИО..."
                         onFocus={() => handleCellFocus(c, 'name')}
                         onChange={e => onUpdateClient({ ...c, name: e.target.value })}
+                        onBlur={() => handleCommit(c)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs font-bold outline-none bg-transparent"
                       />
                     </td>
@@ -156,6 +178,8 @@ export default function ClientsTab({
                         placeholder="Телефон..."
                         onFocus={() => handleCellFocus(c, 'phone')}
                         onChange={e => onUpdateClient({ ...c, phone: e.target.value })}
+                        onBlur={() => handleCommit(c)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>
@@ -166,6 +190,8 @@ export default function ClientsTab({
                         placeholder="Контактное лицо..."
                         onFocus={() => handleCellFocus(c, 'contactPerson')}
                         onChange={e => onUpdateClient({ ...c, contactPerson: e.target.value })}
+                        onBlur={() => handleCommit(c)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>
@@ -176,6 +202,8 @@ export default function ClientsTab({
                         placeholder="Email..."
                         onFocus={() => handleCellFocus(c, 'email')}
                         onChange={e => onUpdateClient({ ...c, email: e.target.value })}
+                        onBlur={() => handleCommit(c)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>
@@ -186,6 +214,8 @@ export default function ClientsTab({
                         placeholder="Примечание..."
                         onFocus={() => handleCellFocus(c, 'note')}
                         onChange={e => onUpdateClient({ ...c, note: e.target.value })}
+                        onBlur={() => handleCommit(c)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                         className="w-full h-full px-2 text-xs outline-none bg-transparent"
                       />
                     </td>
