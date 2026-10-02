@@ -145,13 +145,21 @@ export const api = {
   },
 
   // history
-  fetchHistory: (limit?: number) => cachedGet<any[]>(`/api/history${limit ? `?limit=${limit}` : ''}`),
+  fetchHistory: (limit = 150) => cachedGet<any[]>(`/api/history?limit=${limit}`),
   saveHistory: async (h: any) => {
     clearApiCache()
     return authFetch('/api/history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(h)
+    }).then(r => r.json())
+  },
+  saveHistoryBatch: async (entries: any[]) => {
+    clearApiCache()
+    return authFetch('/api/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries })
     }).then(r => r.json())
   },
   clearHistory: async () => {

@@ -75,6 +75,7 @@ export interface HistoryEntry {
   snapshot: { clients: Client[]; contractors: Contractor[]; payers: Payer[]; orders: Order[] }
   snapshotString?: string
   userId?: string
+  synced?: boolean
 }
 
 export interface SalaryRecord {

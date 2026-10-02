@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from 'react'
+import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { api } from '../api'
 import type { Client, Contractor, Payer, Order, HistoryEntry, User } from '../types'
 
@@ -25,6 +25,19 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const [contractors, setContractors] = useState<Contractor[]>([])
   const [payers, setPayers] = useState<Payer[]>([])
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [isSyncingHistory, setIsSyncingHistory] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<string>('')
+  const historyRef = useRef<HistoryEntry[]>([])
+
+  useEffect(() => {
+    historyRef.current = history
+  }, [history])
+
+  // Debounce timers to avoid spamming Turso and history on every keystroke
+  const contractorTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const clientTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const payerTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const orderTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // Filter States with localStorage persistence
   const getSavedFilters = () => {
@@ -109,7 +122,11 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       setClients(Array.isArray(clData) ? clData : [])
       setContractors(Array.isArray(coData) ? coData : [])
       setPayers(Array.isArray(pyData) ? pyData : [])
-      if (Array.isArray(histData)) setHistory(histData)
+      if (Array.isArray(histData)) {
+        const syncedHist = histData.map(h => ({ ...h, synced: true }))
+        setHistory(syncedHist)
+        historyRef.current = syncedHist
+      }
       if (Array.isArray(usersData)) setAllUsersList(usersData)
     } catch (e) {
       console.error('Error loading data:', e)
@@ -120,6 +137,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
     loadAllData()
   }, [currentUser.id, currentUser.role, viewUserId])
 
+  // Smart local history logging (up to 150 steps buffer, no network spam on each keystroke)
   const logHistory = (action: string, description: string, currentSnapshot?: any) => {
     const snap = currentSnapshot || { clients, contractors, payers, orders }
     const entry: HistoryEntry = {
@@ -128,11 +146,79 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       action,
       description,
       snapshot: snap,
-      userId: currentUser.id
+      userId: currentUser.id,
+      synced: false
     }
-    setHistory(h => [entry, ...h.slice(0, 49)])
-    api.saveHistory(entry).catch(() => {})
+
+    setHistory(prev => {
+      // If the latest entry is the same action and description (e.g. continuous editing),
+      // update the snapshot in place so the history buffer is not spammed with duplicate rows
+      const first = prev[0]
+      if (first && !first.synced && first.action === action && first.description === description) {
+        const merged = [{ ...first, timestamp: entry.timestamp, snapshot: snap }, ...prev.slice(1)]
+        historyRef.current = merged
+        return merged
+      }
+      const updated = [entry, ...prev.slice(0, 149)] // Keep up to 150 entries in local buffer
+      historyRef.current = updated
+      try {
+        localStorage.setItem('crm_history_local', JSON.stringify(updated.slice(0, 50)))
+      } catch {}
+      return updated
+    })
   }
+
+  // Batch sync history entries to Turso in one single request
+  const syncHistoryToTurso = async () => {
+    const unsynced = historyRef.current.filter(h => !h.synced)
+    if (unsynced.length === 0) return true
+
+    setIsSyncingHistory(true)
+    try {
+      const res = await api.saveHistoryBatch(unsynced)
+      if (res && res.ok !== false) {
+        const unsyncedIds = new Set(unsynced.map(h => h.id))
+        setHistory(prev => {
+          const synced = prev.map(h => unsyncedIds.has(h.id) ? { ...h, synced: true } : h)
+          historyRef.current = synced
+          return synced
+        })
+        const timeStr = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+        setLastSyncTime(timeStr)
+        return true
+      }
+    } catch (err) {
+      console.error('Failed to sync history batch to Turso:', err)
+    } finally {
+      setIsSyncingHistory(false)
+    }
+    return false
+  }
+
+  // Auto-sync history every 5 minutes and attempt beacon on page exit
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const unsynced = historyRef.current.filter(h => !h.synced)
+      if (unsynced.length > 0) {
+        syncHistoryToTurso()
+      }
+    }, 5 * 60 * 1000)
+
+    const handleBeforeUnload = () => {
+      const unsynced = historyRef.current.filter(h => !h.synced)
+      if (unsynced.length > 0) {
+        try {
+          navigator.sendBeacon?.('/api/history', JSON.stringify({ entries: unsynced }))
+        } catch {}
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   // --- Snapshot Restore ---
   const handleRestoreSnapshot = async (entry: HistoryEntry) => {
@@ -228,11 +314,38 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const handleUpdateOrder = (updated: Order, logDescription?: string) => {
     const updatedOrders = orders.map(o => o.id === updated.id ? updated : o)
     setOrders(updatedOrders)
-    api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
-    
-    // Log history entry for edits
-    const desc = logDescription || `Редактирование заказа #${updated.id}`
-    logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
+
+    // Check if this is continuous text typing (product, note, comment, formula, etc.)
+    const isTextEdit = logDescription && (
+      logDescription.includes('Правка поля') ||
+      logDescription.includes('Изменение продукции') ||
+      logDescription.includes('Изменение комментария') ||
+      logDescription.includes('Изменение № счета') ||
+      logDescription.includes('Обновлено описание') ||
+      logDescription.includes('Обновлена формула') ||
+      logDescription.includes('Обновлено примечание')
+    )
+
+    if (isTextEdit) {
+      if (orderTimers.current.has(updated.id)) {
+        clearTimeout(orderTimers.current.get(updated.id)!)
+      }
+      const timer = setTimeout(() => {
+        orderTimers.current.delete(updated.id)
+        api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
+        const desc = logDescription || `Редактирование заказа #${updated.id}`
+        logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
+      }, 700)
+      orderTimers.current.set(updated.id, timer)
+    } else {
+      if (orderTimers.current.has(updated.id)) {
+        clearTimeout(orderTimers.current.get(updated.id)!)
+        orderTimers.current.delete(updated.id)
+      }
+      api.upsertOrder({ ...updated, userId: updated.userId || currentUser.id }).catch(() => {})
+      const desc = logDescription || `Редактирование заказа #${updated.id}`
+      logHistory('Редактирование заказа', desc, { clients, contractors, payers, orders: updatedOrders })
+    }
   }
 
   const handleConfirmAiOrder = async (newOrder: Order, newClientsToCreate: Client[], newContractorsToCreate: Contractor[]) => {
@@ -306,8 +419,16 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const handleUpdateClient = (c: Client) => {
     const updatedClients = clients.map(item => item.id === c.id ? c : item)
     setClients(updatedClients)
-    api.upsertClient(c).catch(() => {})
-    logHistory('Правка клиента', `Изменены данные клиента ${c.name}`, { clients: updatedClients, contractors, payers, orders })
+
+    if (clientTimers.current.has(c.id)) {
+      clearTimeout(clientTimers.current.get(c.id)!)
+    }
+    const timer = setTimeout(() => {
+      clientTimers.current.delete(c.id)
+      api.upsertClient(c).catch(() => {})
+      logHistory('Правка клиента', `Изменены данные клиента ${c.name}`, { clients: updatedClients, contractors, payers, orders })
+    }, 700)
+    clientTimers.current.set(c.id, timer)
   }
 
   const handleDeleteClient = (id: string) => {
@@ -336,8 +457,16 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const handleUpdateContractor = (co: Contractor) => {
     const updatedContractors = contractors.map(item => item.id === co.id ? co : item)
     setContractors(updatedContractors)
-    api.upsertContractor(co).catch(() => {})
-    logHistory('Правка подрядчика', `Изменены данные подрядчика ${co.name}`, { clients, contractors: updatedContractors, payers, orders })
+
+    if (contractorTimers.current.has(co.id)) {
+      clearTimeout(contractorTimers.current.get(co.id)!)
+    }
+    const timer = setTimeout(() => {
+      contractorTimers.current.delete(co.id)
+      api.upsertContractor(co).catch(() => {})
+      logHistory('Правка подрядчика', `Изменены данные подрядчика ${co.name}`, { clients, contractors: updatedContractors, payers, orders })
+    }, 700)
+    contractorTimers.current.set(co.id, timer)
   }
 
   const handleDeleteContractor = (id: string) => {
@@ -365,8 +494,16 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const handleUpdatePayer = (p: Payer) => {
     const updatedPayers = payers.map(item => item.id === p.id ? p : item)
     setPayers(updatedPayers)
-    api.upsertPayer(p).catch(() => {})
-    logHistory('Правка плательщика', `Изменены данные плательщика ${p.name}`, { clients, contractors, payers: updatedPayers, orders })
+
+    if (payerTimers.current.has(p.id)) {
+      clearTimeout(payerTimers.current.get(p.id)!)
+    }
+    const timer = setTimeout(() => {
+      payerTimers.current.delete(p.id)
+      api.upsertPayer(p).catch(() => {})
+      logHistory('Правка плательщика', `Изменены данные плательщика ${p.name}`, { clients, contractors, payers: updatedPayers, orders })
+    }, 700)
+    payerTimers.current.set(p.id, timer)
   }
 
   const handleDeletePayer = (id: string) => {
@@ -439,7 +576,11 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
   const handleLoadMoreHistory = async (limit: number) => {
     try {
       const data = await api.fetchHistory(limit)
-      if (Array.isArray(data)) setHistory(data)
+      if (Array.isArray(data)) {
+        const syncedData = data.map(h => ({ ...h, synced: true }))
+        setHistory(syncedData)
+        historyRef.current = syncedData
+      }
     } catch (e) {
       console.error('Error fetching history:', e)
     }
@@ -553,11 +694,19 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
         <HistoryTab
           history={history}
           onClearHistory={() => {
-            setHistory([])
-            api.clearHistory().catch(() => {})
+            if (window.confirm('Очистить весь журнал регистрации действий и снимков?')) {
+              setHistory([])
+              historyRef.current = []
+              try { localStorage.removeItem('crm_history_local') } catch {}
+              api.clearHistory().catch(() => {})
+            }
           }}
           onRestoreSnapshot={handleRestoreSnapshot}
           onLoadMoreHistory={handleLoadMoreHistory}
+          isSyncing={isSyncingHistory}
+          onSyncHistory={syncHistoryToTurso}
+          lastSyncTime={lastSyncTime}
+          unsyncedCount={history.filter(h => !h.synced).length}
         />
       )}
 
