@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import dotenv from 'dotenv'
 import { verifyAuth } from './auth-helper.js'
 
+export const maxDuration = 60
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  dotenv.config({ override: true })
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -13,6 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ ok: false, error: 'Неавторизованный доступ (требуется сессионный токен)' })
   }
 
+  try {
     const { text, imageBase64, apiKey: customApiKey, model: customModel, clients = [], contractors = [], payers = [], currentMonth = '2026-10' } = req.body || {}
     const rawKey = (customApiKey || process.env.OPENROUTER_API_KEY || '').trim()
 

@@ -40,10 +40,47 @@ export default function AiOrderModal({
     ? `${selectedMonth}-${String(new Date().getDate()).padStart(2, '0')}`
     : `2026-10-${String(new Date().getDate()).padStart(2, '0')}`
 
+  const compressImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const src = e.target?.result as string
+        if (!src) return resolve('')
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let { width, height } = img
+          const maxDim = 1920
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width)
+              width = maxDim
+            } else {
+              width = Math.round((width * maxDim) / height)
+              height = maxDim
+            }
+          }
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            return resolve(src)
+          }
+          ctx.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL('image/jpeg', 0.82))
+        }
+        img.onerror = () => resolve(src)
+        img.src = src
+      }
+      reader.onerror = () => resolve('')
+      reader.readAsDataURL(file)
+    })
+  }
+
   // Support Ctrl + V paste directly into modal
   useEffect(() => {
     if (!isOpen) return
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       const items = e.clipboardData?.items
       if (!items) return
       for (let i = 0; i < items.length; i++) {
@@ -51,15 +88,10 @@ export default function AiOrderModal({
           const file = items[i].getAsFile()
           if (file) {
             e.preventDefault()
-            if (file.size > 8 * 1024 * 1024) {
-              alert('Файл слишком большой. Максимальный размер 8 МБ.')
-              return
+            const base64 = await compressImageFile(file)
+            if (base64) {
+              setImageBase64(base64)
             }
-            const reader = new FileReader()
-            reader.onload = () => {
-              setImageBase64(reader.result as string)
-            }
-            reader.readAsDataURL(file)
             break
           }
         }
@@ -71,20 +103,14 @@ export default function AiOrderModal({
 
   if (!isOpen) return null
 
-  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 8 * 1024 * 1024) {
-      alert('Файл слишком большой. Максимальный размер 8 МБ.')
-      return
+    const base64 = await compressImageFile(file)
+    if (base64) {
+      setImageBase64(base64)
     }
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      setImageBase64(reader.result as string)
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleSaveApiKey = (key: string) => {
