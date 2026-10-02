@@ -177,6 +177,12 @@ export const api = {
       body: JSON.stringify(s)
     }).then(r => r.json())
   },
+  deleteSalary: async (id: string) => {
+    clearApiCache()
+    return authFetch(`/api/salary?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).then(r => r.json())
+  },
 
   // ai assistant
   parseOrderWithAI: async (params: { text?: string; imageBase64?: string; apiKey?: string; model?: string; clients: any[]; contractors: any[]; payers: any[]; currentMonth?: string }) => {
