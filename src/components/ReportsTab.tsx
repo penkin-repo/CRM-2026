@@ -171,7 +171,7 @@ export default function ReportsTab({
 
   const getMonthlyPayerSum = (payerId: string) => {
     return monthOrders
-      .filter(o => o.paymentReceiverId === payerId && o.paymentReceived)
+      .filter(o => o.paymentReceiverId === payerId)
       .reduce((sum, o) => sum + (Number(o.saleAmount) || 0), 0)
   }
 
@@ -189,7 +189,7 @@ export default function ReportsTab({
     let total = 0
     monthOrders.forEach(o => {
       ;(o.contractors || []).forEach(c => {
-        if (c.payerId === payerId && c.paid) total += Number(c.costValue) || 0
+        if (c.payerId === payerId) total += Number(c.costValue) || 0
       })
     })
     return total
@@ -200,15 +200,16 @@ export default function ReportsTab({
     let totalSale = 0
     let totalCosts = 0
     let totalProfit = 0
-    periodOrders.forEach(o => {
+    const sourceOrders = reportSubTab === 'salary' ? monthOrders : periodOrders
+    sourceOrders.forEach(o => {
       const t = calcOrderTotals(o)
       totalSale += t.sale
       totalCosts += t.costs
       totalProfit += t.profit
     })
     const baseSalary = Math.round(totalProfit * (salaryPercent / 100))
-    return { count: periodOrders.length, totalSale, totalCosts, totalProfit, baseSalary }
-  }, [periodOrders, salaryPercent])
+    return { count: sourceOrders.length, totalSale, totalCosts, totalProfit, baseSalary }
+  }, [reportSubTab, monthOrders, periodOrders, salaryPercent])
 
   // Client Report Data & Totals
   const clientReportOrders = useMemo(() => {
