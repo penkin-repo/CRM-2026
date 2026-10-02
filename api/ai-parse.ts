@@ -13,8 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ ok: false, error: 'Неавторизованный доступ (требуется сессионный токен)' })
   }
 
-  try {
-    const { text, imageBase64, apiKey: customApiKey, model: customModel, clients = [], contractors = [], payers = [] } = req.body || {}
+    const { text, imageBase64, apiKey: customApiKey, model: customModel, clients = [], contractors = [], payers = [], currentMonth = '2026-10' } = req.body || {}
     const rawKey = (customApiKey || process.env.OPENROUTER_API_KEY || '').trim()
 
     if (!rawKey || rawKey === 'sk-or-v1-...' || rawKey.length < 15) {
@@ -29,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Введите текст или загрузите изображение для распознавания.' })
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = `${currentMonth}-${String(new Date().getDate()).padStart(2, '0')}`
 
     const systemPrompt = `Ты — высокоточный ИИ-помощник CRM для создания и разбора заказов.
 Ты умеешь анализировать как обычный текст/сообщения от менеджеров, так и скриншоты расчетных таблиц, смет, накладных и спецификаций.
@@ -78,6 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 Б. РАБОТА С ОБЫЧНЫМ ТЕКСТОМ / СООБЩЕНИЯМИ:
 Если пользователь ввел текст (например: «ИП Дракунов, 200 визиток матовых по 3100 (себес Гефест 1200), баннер 2080 (себес БР 1080)»):
 - Извлеки клиента, позиции без цен в "productName", общую сумму клиенту в "saleAmount", а подрядчиков и себестоимость распредели в массив "contractors".
+
+В. ПРАВИЛО ДЛЯ ДАТЫ ("date"):
+- Формат YYYY-MM-DD.
+- Текущий рабочий год системы CRM — 2026 (активный месяц: "${currentMonth}").
+- Если на скриншоте/в документе стоит старый архивный год (например 2023, 2024, 2025) или дата не указана — СТРОГО подставляй дату в текущем рабочем месяце (например, "${todayStr}").
+- ЗАПРЕЩЕНО создавать заказы в 2023, 2024 или 2025 году! Все заказы создаются в 2026 году.
 
 СХЕМА JSON ДЛЯ ОТВЕТА:
 {

@@ -36,6 +36,10 @@ export default function AiOrderModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const defaultDate = selectedMonth
+    ? `${selectedMonth}-${String(new Date().getDate()).padStart(2, '0')}`
+    : `2026-10-${String(new Date().getDate()).padStart(2, '0')}`
+
   // Support Ctrl + V paste directly into modal
   useEffect(() => {
     if (!isOpen) return
@@ -104,6 +108,7 @@ export default function AiOrderModal({
     setParsedData(null)
 
     try {
+      const currentWorkingMonth = selectedMonth || '2026-10'
       const res = await api.parseOrderWithAI({
         text: inputText,
         imageBase64: imageBase64 || undefined,
@@ -111,9 +116,17 @@ export default function AiOrderModal({
         model: selectedModel.trim() || undefined,
         clients,
         contractors,
-        payers
+        payers,
+        currentMonth: currentWorkingMonth
       })
-      setParsedData(res)
+
+      let finalDate = res.date
+      if (!finalDate || finalDate.startsWith('2023') || finalDate.startsWith('2024') || finalDate.startsWith('2025')) {
+        const day = finalDate && finalDate.length >= 10 ? finalDate.slice(8, 10) : String(new Date().getDate()).padStart(2, '0')
+        finalDate = `${currentWorkingMonth}-${day}`
+      }
+
+      setParsedData({ ...res, date: finalDate })
     } catch (err: any) {
       setError(err.message || 'Ошибка при вызове ИИ распознавания')
     } finally {
@@ -220,13 +233,15 @@ export default function AiOrderModal({
     })
 
     // 4. Construct Order
-    const defaultDate = selectedMonth
-      ? `${selectedMonth}-${String(new Date().getDate()).padStart(2, '0')}`
-      : new Date().toISOString().slice(0, 10)
+    let orderDate = (parsedData.date || defaultDate).trim()
+    if (orderDate.startsWith('2023') || orderDate.startsWith('2024') || orderDate.startsWith('2025')) {
+      const day = orderDate.length >= 10 ? orderDate.slice(8, 10) : String(new Date().getDate()).padStart(2, '0')
+      orderDate = `${selectedMonth || '2026-10'}-${day}`
+    }
 
     const newOrder: Order = {
       id: Math.random().toString(36).slice(2, 8),
-      date: parsedData.date || defaultDate,
+      date: orderDate,
       clientId: targetClientId,
       productName: parsedData.productName || 'Заказ из ИИ',
       contractors: orderContractors,
@@ -444,8 +459,13 @@ export default function AiOrderModal({
               {/* Main Fields */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-white p-2 rounded border border-slate-200">
-                  <span className="text-slate-500 block text-[10px]">Дата:</span>
-                  <span className="font-bold text-slate-800">{parsedData.date || 'Сегодня'}</span>
+                  <span className="text-slate-500 block text-[10px] mb-0.5">Дата заказа (можно изменить):</span>
+                  <input
+                    type="date"
+                    value={parsedData.date || defaultDate}
+                    onChange={(e) => setParsedData({ ...parsedData, date: e.target.value })}
+                    className="font-bold text-[#1c1d1f] border border-[#b8bdc5] rounded px-1.5 py-0.5 text-xs outline-none bg-white w-full focus:border-[#ffcc00] cursor-pointer"
+                  />
                 </div>
 
                 <div className="bg-white p-2 rounded border border-slate-200">

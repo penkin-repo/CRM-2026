@@ -1,6 +1,6 @@
 {
   "name": "crm-table",
-  "version": "8.9.4",
+  "version": "8.9.5",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.0.0",

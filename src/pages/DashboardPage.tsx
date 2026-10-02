@@ -94,7 +94,18 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
         currentUser.role === 'admin' ? api.fetchUsers().catch(() => []) : Promise.resolve([])
       ])
 
-      setOrders(Array.isArray(ordData) ? ordData : [])
+      const rawOrders = Array.isArray(ordData) ? ordData : []
+      const healedOrders = rawOrders.map(o => {
+        if (o.date && (o.date.startsWith('2023') || o.date.startsWith('2024') || o.date.startsWith('2025'))) {
+          const day = o.date.length >= 10 ? o.date.slice(8, 10) : '01'
+          const fixedOrder = { ...o, date: `2026-10-${day}` }
+          api.upsertOrder({ ...fixedOrder, userId: fixedOrder.userId || currentUser.id }).catch(() => {})
+          return fixedOrder
+        }
+        return o
+      })
+
+      setOrders(healedOrders)
       setClients(Array.isArray(clData) ? clData : [])
       setContractors(Array.isArray(coData) ? coData : [])
       setPayers(Array.isArray(pyData) ? pyData : [])
@@ -242,6 +253,14 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       }
     }
     if (newContractorsToCreate.length > 0) setContractors(updatedContractors)
+
+    // Enforce year 2026 for AI orders
+    let safeDate = (newOrder.date || '').trim()
+    if (!safeDate || safeDate.startsWith('2023') || safeDate.startsWith('2024') || safeDate.startsWith('2025')) {
+      const day = safeDate.length >= 10 ? safeDate.slice(8, 10) : String(new Date().getDate()).padStart(2, '0')
+      safeDate = `${selectedMonth || '2026-10'}-${day}`
+    }
+    newOrder.date = safeDate
 
     // Automatically navigate filters so the new order is immediately visible on screen
     if (newOrder.date) {
