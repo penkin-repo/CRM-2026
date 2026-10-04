@@ -779,7 +779,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Sale Amount */}
-                      <td className={`sheet-cell p-0 relative ${isCellActive('saleAmount') ? 'sheet-cell-active' : ''} ${isUnfilledSale ? 'cell-unfilled' : ''}`}>
+                      <td className={`sheet-cell p-0 relative ${isCellActive('saleAmount') ? 'sheet-cell-active !overflow-visible' : ''} ${isUnfilledSale ? 'cell-unfilled' : ''}`}>
                         {/* Live formula preview popup while typing */}
                         {isCellActive('saleAmount') && (() => {
                           const currentVal = (activeCell?.oid === order.id && activeCell.field === 'saleAmount' && editBar !== undefined)
@@ -789,9 +789,9 @@ export default function OrdersTab({
                           if (!hasMath) return null
                           const calcVal = evalFormula(currentVal)
                           return (
-                            <div className="absolute -top-7 right-0 z-50 bg-[#1c1d1f] text-amber-300 border border-[#e5ba00] px-2 py-0.5 rounded shadow-lg text-[11px] font-mono font-bold whitespace-nowrap pointer-events-none flex items-center gap-1.5 animate-in fade-in select-none">
-                              <span className="text-amber-400 font-extrabold">=</span>
-                              <span className="text-white">{calcVal.toLocaleString('ru-RU')} ₽</span>
+                            <div className="formula-preview-badge">
+                              <span className="formula-sign">=</span>
+                              <span className="formula-val">{calcVal.toLocaleString('ru-RU')} ₽</span>
                             </div>
                           )
                         })()}
@@ -948,7 +948,7 @@ export default function OrdersTab({
                           {/* Google Sheets TSV Copy Icon Button */}
                           <button
                             title="Скопировать для Google Таблицы (Ctrl+V)"
-                            className={`p-1 rounded cursor-pointer transition flex items-center justify-center border ${
+                            className={`h-[22px] w-[22px] p-0 rounded cursor-pointer transition flex items-center justify-center border shrink-0 ${
                               copiedGoogleId === order.id
                                 ? 'bg-emerald-600 text-white border-emerald-700'
                                 : 'text-emerald-700 hover:text-emerald-900 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]'
@@ -965,16 +965,16 @@ export default function OrdersTab({
                           {/* Google Sheets Preview Modal Icon Button */}
                           <button
                             title="Предпросмотр данных для Google Таблицы (12 колонок)"
-                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-[#555a64] hover:text-[#1c1d1f] bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
+                            className="h-[22px] w-[22px] p-0 rounded cursor-pointer transition flex items-center justify-center border shrink-0 text-[#555a64] hover:text-[#1c1d1f] bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
                             onClick={() => setGooglePreviewOrder({ order, idx })}
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Copy ID Button - Styled matching A29 action buttons */}
+                          {/* Copy ID Button - Exact same h-[22px] as neighboring buttons */}
                           <button
                             title={`Скопировать уникальный номер заказа (#${order.id})`}
-                            className={`px-1.5 py-0.5 rounded cursor-pointer transition flex items-center justify-center border text-[11px] font-mono font-bold shrink-0 ${
+                            className={`h-[22px] px-1.5 rounded cursor-pointer transition flex items-center justify-center border text-[11px] font-mono font-bold shrink-0 leading-none ${
                               copiedId === order.id
                                 ? 'bg-emerald-600 text-white border-emerald-700'
                                 : 'text-[#333740] hover:text-[#1c1d1f] bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]'
@@ -991,7 +991,7 @@ export default function OrdersTab({
                           {/* Duplicate Order */}
                           <button
                             title="Дублировать заказ"
-                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-slate-600 hover:text-blue-600 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
+                            className="h-[22px] w-[22px] p-0 rounded cursor-pointer transition flex items-center justify-center border shrink-0 text-slate-600 hover:text-blue-600 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
                             onClick={() => onCopyOrder(order)}
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -1000,7 +1000,7 @@ export default function OrdersTab({
                           {/* Delete Order */}
                           <button
                             title="Удалить заказ"
-                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-red-600 hover:text-red-800 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
+                            className="h-[22px] w-[22px] p-0 rounded cursor-pointer transition flex items-center justify-center border shrink-0 text-red-600 hover:text-red-800 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
                             onClick={() => onDeleteOrder(order.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1117,7 +1117,7 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Cost Formula Input (Syncs with Top Edit-Bar, Empty Placeholder) */}
-                                        <td className={`sheet-cell p-0 relative ${isCrActive('crCostFormula') ? 'sheet-cell-active' : ''} ${isCrUnfilledCost ? 'cell-unfilled' : ''}`}>
+                                        <td className={`sheet-cell p-0 relative ${isCrActive('crCostFormula') ? 'sheet-cell-active !overflow-visible' : ''} ${isCrUnfilledCost ? 'cell-unfilled' : ''}`}>
                                           {/* Live formula preview popup while typing */}
                                           {isCrActive('crCostFormula') && (() => {
                                             const currentVal = (activeCell?.oid === order.id && activeCell?.field === 'crCostFormula' && activeCell?.contractorRowId === cr.id && editBar !== undefined)
@@ -1127,9 +1127,9 @@ export default function OrdersTab({
                                             if (!hasMath) return null
                                             const calcVal = evalFormula(currentVal)
                                             return (
-                                              <div className="absolute -top-7 right-0 z-50 bg-[#1c1d1f] text-amber-300 border border-[#e5ba00] px-2 py-0.5 rounded shadow-lg text-[11px] font-mono font-bold whitespace-nowrap pointer-events-none flex items-center gap-1.5 animate-in fade-in select-none">
-                                                <span className="text-amber-400 font-extrabold">=</span>
-                                                <span className="text-white">{calcVal.toLocaleString('ru-RU')} ₽</span>
+                                              <div className="formula-preview-badge">
+                                                <span className="formula-sign">=</span>
+                                                <span className="formula-val">{calcVal.toLocaleString('ru-RU')} ₽</span>
                                               </div>
                                             )
                                           })()}
