@@ -83,8 +83,25 @@ tr.status-completed td.sheet-cell:not(.sheet-cell-active):not(:focus-within) {
 }
 
 /* A29 CRM Row Hover */
-tr.sheet-row:hover td.sheet-cell {
+tr.sheet-row:hover td.sheet-cell:not(.cell-unfilled) {
   background-color: #fff9d6 !important;
+}
+
+/* UNFILLED REQUIRED CELL HIGHLIGHT - Soft Pastel Red */
+td.cell-unfilled:not(.sheet-cell-active):not(:focus-within) {
+  background-color: #fff0f0 !important;
+}
+
+tr.sheet-row:hover td.cell-unfilled:not(.sheet-cell-active):not(:focus-within) {
+  background-color: #ffe6e6 !important;
+}
+
+html.dark td.cell-unfilled:not(.sheet-cell-active):not(:focus-within) {
+  background-color: rgba(185, 28, 28, 0.22) !important;
+}
+
+html.dark tr.sheet-row:hover td.cell-unfilled:not(.sheet-cell-active):not(:focus-within) {
+  background-color: rgba(185, 28, 28, 0.35) !important;
 }
 
 /* ACTIVE EDITABLE CELL HIGHLIGHT - STYLEGUIDE_A29.md */

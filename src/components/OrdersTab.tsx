@@ -111,6 +111,45 @@ export default function OrdersTab({
     setTimeout(() => setCopiedGoogleId(null), 2500)
   }
 
+  // Clear active cell focus when clicking anywhere outside interactive cells/edit-bar or pressing Escape
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      if (
+        target.closest('.sheet-cell') ||
+        target.closest('.quick-property-bar') ||
+        target.closest('.quick-property-textarea') ||
+        target.closest('.combobox-dropdown') ||
+        target.closest('button') ||
+        target.closest('input') ||
+        target.closest('select') ||
+        target.closest('textarea') ||
+        target.closest('[role="dialog"]')
+      ) {
+        return
+      }
+      setActiveCell(null)
+      setEditBar('')
+    }
+
+    const handleKeyDownGlobal = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveCell(null)
+        setEditBar('')
+        const activeEl = document.activeElement as HTMLElement | null
+        if (activeEl && activeEl.blur) activeEl.blur()
+      }
+    }
+
+    document.addEventListener('mousedown', handleDocumentClick)
+    window.addEventListener('keydown', handleKeyDownGlobal)
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick)
+      window.removeEventListener('keydown', handleKeyDownGlobal)
+    }
+  }, [])
+
   // Sync Top Edit-bar with selected cell content (both main orders and contractor sub-tables)
   useEffect(() => {
     if (!activeCell) return
@@ -496,7 +535,7 @@ export default function OrdersTab({
       </div>
 
       {/* Quick Property Bar — Always syncs with active cell text (orders or contractor sub-tables) */}
-      <div className="bg-white border-b border-[#b8bdc5] px-3 py-1.5 shadow-2xs border-l-4 border-l-[#ffcc00]">
+      <div className="bg-white border-b border-[#b8bdc5] px-3 py-1.5 shadow-2xs border-l-4 border-l-[#ffcc00] quick-property-bar">
         <div className="text-[10px] font-bold text-[#555a64] mb-0.5 uppercase tracking-wide">
           {activeCell
             ? `Редактирование: ${activeCell.field} (заказ #${activeCell.oid.slice(0, 6)})`
@@ -602,6 +641,15 @@ export default function OrdersTab({
                 const isCompleted = order.status === 'completed'
                 const validationErrors = getOrderValidationErrors(order)
 
+                const isUnfilledDate = !isCompleted && !order.date
+                const isUnfilledClient = !isCompleted && !order.clientId
+                const isUnfilledProduct = !isCompleted && (!order.productName || !order.productName.trim())
+                const isUnfilledCosts = !isCompleted && (order.contractors || []).length === 0
+                const isUnfilledSale = !isCompleted && (!order.saleAmount || Number(order.saleAmount) <= 0)
+                const isUnfilledReceiver = !isCompleted && !order.paymentReceiverId
+                const isUnfilledPaymentNote = !isCompleted && !cash && (!order.paymentNote || !order.paymentNote.trim())
+                const isUnfilledPaymentReceived = !isCompleted && !order.paymentReceived
+
                 return (
                   <Fragment key={order.id}>
                     <tr className={`sheet-row text-xs transition-all duration-150 ${
@@ -669,7 +717,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Date */}
-                      <td className={`sheet-cell p-0 ${isCellActive('date') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 ${isCellActive('date') ? 'sheet-cell-active' : ''} ${isUnfilledDate ? 'cell-unfilled' : ''}`}>
                         <input
                           id={`cell-${order.id}-date`}
                           type="date"
@@ -686,7 +734,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Client with Search Combobox */}
-                      <td className={`sheet-cell p-0 ${isCellActive('clientId') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 ${isCellActive('clientId') ? 'sheet-cell-active' : ''} ${isUnfilledClient ? 'cell-unfilled' : ''}`}>
                         <ClientSearchSelect
                           id={`cell-${order.id}-clientId`}
                           value={order.clientId || ''}
@@ -702,7 +750,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Product Name */}
-                      <td className={`sheet-cell p-0 ${isCellActive('productName') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 ${isCellActive('productName') ? 'sheet-cell-active' : ''} ${isUnfilledProduct ? 'cell-unfilled' : ''}`}>
                         <input
                           id={`cell-${order.id}-productName`}
                           type="text"
@@ -726,12 +774,27 @@ export default function OrdersTab({
                       </td>
 
                       {/* NON-editable Costs */}
-                      <td className="sheet-cell text-right text-slate-700 font-bold bg-[#f9fafb]">
+                      <td className={`sheet-cell text-right text-slate-700 font-bold ${isUnfilledCosts ? 'cell-unfilled' : 'bg-[#f9fafb]'}`}>
                         <div className="cell-truncate">{t.costs.toLocaleString('ru-RU')} ₽</div>
                       </td>
 
                       {/* Editable Sale Amount */}
-                      <td className={`sheet-cell p-0 ${isCellActive('saleAmount') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 relative ${isCellActive('saleAmount') ? 'sheet-cell-active' : ''} ${isUnfilledSale ? 'cell-unfilled' : ''}`}>
+                        {/* Live formula preview popup while typing */}
+                        {isCellActive('saleAmount') && (() => {
+                          const currentVal = (activeCell?.oid === order.id && activeCell.field === 'saleAmount' && editBar !== undefined)
+                            ? editBar
+                            : (order.saleFormula || (order.saleAmount ? String(order.saleAmount) : ''))
+                          const hasMath = currentVal.startsWith('=') || /[+\-*/()]/.test(currentVal)
+                          if (!hasMath) return null
+                          const calcVal = evalFormula(currentVal)
+                          return (
+                            <div className="absolute -top-7 right-0 z-50 bg-[#1c1d1f] text-amber-300 border border-[#e5ba00] px-2 py-0.5 rounded shadow-lg text-[11px] font-mono font-bold whitespace-nowrap pointer-events-none flex items-center gap-1.5 animate-in fade-in select-none">
+                              <span className="text-amber-400 font-extrabold">=</span>
+                              <span className="text-white">{calcVal.toLocaleString('ru-RU')} ₽</span>
+                            </div>
+                          )
+                        })()}
                         <input
                           id={`cell-${order.id}-saleAmount`}
                           type="text"
@@ -785,7 +848,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Payer Receiver */}
-                      <td className={`sheet-cell p-0 ${isCellActive('paymentReceiverId') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 ${isCellActive('paymentReceiverId') ? 'sheet-cell-active' : ''} ${isUnfilledReceiver ? 'cell-unfilled' : ''}`}>
                         <select
                           id={`cell-${order.id}-paymentReceiverId`}
                           value={order.paymentReceiverId || ''}
@@ -814,7 +877,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Payment Note */}
-                      <td className={`sheet-cell p-0 ${isCellActive('paymentNote') ? 'sheet-cell-active' : ''}`}>
+                      <td className={`sheet-cell p-0 ${isCellActive('paymentNote') ? 'sheet-cell-active' : ''} ${isUnfilledPaymentNote ? 'cell-unfilled' : ''}`}>
                         {cash ? (
                           <div className="text-center text-slate-400 bg-slate-200/80 h-full flex items-center justify-center font-bold">—</div>
                         ) : (
@@ -842,7 +905,7 @@ export default function OrdersTab({
                       </td>
 
                       {/* Editable Paid Checkbox */}
-                      <td className="sheet-cell text-center p-0">
+                      <td className={`sheet-cell text-center p-0 ${isUnfilledPaymentReceived ? 'cell-unfilled' : ''}`}>
                         <input
                           type="checkbox"
                           checked={!!order.paymentReceived}
@@ -908,10 +971,14 @@ export default function OrdersTab({
                             <Eye className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Copy ID Button */}
+                          {/* Copy ID Button - Styled matching A29 action buttons */}
                           <button
                             title={`Скопировать уникальный номер заказа (#${order.id})`}
-                            className="text-[10px] px-1 py-0.5 font-bold cursor-pointer transition text-[#1e40af] hover:text-blue-900 bg-blue-50 hover:bg-[#fff9d6] border border-blue-200 rounded font-mono shrink-0"
+                            className={`px-1.5 py-0.5 rounded cursor-pointer transition flex items-center justify-center border text-[11px] font-mono font-bold shrink-0 ${
+                              copiedId === order.id
+                                ? 'bg-emerald-600 text-white border-emerald-700'
+                                : 'text-[#333740] hover:text-[#1c1d1f] bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]'
+                            }`}
                             onClick={() => {
                               navigator.clipboard.writeText(order.id)
                               setCopiedId(order.id)
@@ -924,7 +991,7 @@ export default function OrdersTab({
                           {/* Duplicate Order */}
                           <button
                             title="Дублировать заказ"
-                            className="p-1 text-slate-600 hover:text-blue-600 hover:bg-[#fff9d6] rounded cursor-pointer transition"
+                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-slate-600 hover:text-blue-600 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
                             onClick={() => onCopyOrder(order)}
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -933,7 +1000,7 @@ export default function OrdersTab({
                           {/* Delete Order */}
                           <button
                             title="Удалить заказ"
-                            className="p-1 text-red-600 hover:text-red-800 hover:bg-[#fff9d6] rounded cursor-pointer transition"
+                            className="p-1 rounded cursor-pointer transition flex items-center justify-center border text-red-600 hover:text-red-800 bg-white hover:bg-[#fff9d6] border-[#c9ced6] hover:border-[#d9a800]"
                             onClick={() => onDeleteOrder(order.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1001,10 +1068,16 @@ export default function OrdersTab({
                                       activeCell?.field === field &&
                                       activeCell?.contractorRowId === cr.id
 
+                                    const isCrUnfilledContractor = !cr.contractorId
+                                    const isCrUnfilledDesc = !cr.description || !cr.description.trim()
+                                    const isCrUnfilledCost = !cr.costValue || Number(cr.costValue) <= 0
+                                    const isCrUnfilledPayer = !cr.payerId
+                                    const isCrUnfilledPaid = !cr.paid
+
                                     return (
                                       <tr key={cr.id} className="hover:bg-[#fff9d6] text-xs">
                                         {/* Contractor Search Select */}
-                                        <td className={`sheet-cell p-0 ${isCrActive('crContractorId') ? 'sheet-cell-active' : ''}`}>
+                                        <td className={`sheet-cell p-0 ${isCrActive('crContractorId') ? 'sheet-cell-active' : ''} ${isCrUnfilledContractor ? 'cell-unfilled' : ''}`}>
                                           <ContractorSearchSelect
                                             id={`cell-${order.id}-cr-${cr.id}-contractorId`}
                                             value={cr.contractorId || ''}
@@ -1020,7 +1093,7 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Work Description Input (Syncs with Top Edit-Bar) */}
-                                        <td className={`sheet-cell p-0 ${isCrActive('crDescription') ? 'sheet-cell-active' : ''}`}>
+                                        <td className={`sheet-cell p-0 ${isCrActive('crDescription') ? 'sheet-cell-active' : ''} ${isCrUnfilledDesc ? 'cell-unfilled' : ''}`}>
                                           <input
                                             type="text"
                                             value={cr.description || ''}
@@ -1044,7 +1117,22 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Cost Formula Input (Syncs with Top Edit-Bar, Empty Placeholder) */}
-                                        <td className={`sheet-cell p-0 ${isCrActive('crCostFormula') ? 'sheet-cell-active' : ''}`}>
+                                        <td className={`sheet-cell p-0 relative ${isCrActive('crCostFormula') ? 'sheet-cell-active' : ''} ${isCrUnfilledCost ? 'cell-unfilled' : ''}`}>
+                                          {/* Live formula preview popup while typing */}
+                                          {isCrActive('crCostFormula') && (() => {
+                                            const currentVal = (activeCell?.oid === order.id && activeCell?.field === 'crCostFormula' && activeCell?.contractorRowId === cr.id && editBar !== undefined)
+                                              ? editBar
+                                              : (cr.costFormula || (cr.costValue ? String(cr.costValue) : ''))
+                                            const hasMath = currentVal.startsWith('=') || /[+\-*/()]/.test(currentVal)
+                                            if (!hasMath) return null
+                                            const calcVal = evalFormula(currentVal)
+                                            return (
+                                              <div className="absolute -top-7 right-0 z-50 bg-[#1c1d1f] text-amber-300 border border-[#e5ba00] px-2 py-0.5 rounded shadow-lg text-[11px] font-mono font-bold whitespace-nowrap pointer-events-none flex items-center gap-1.5 animate-in fade-in select-none">
+                                                <span className="text-amber-400 font-extrabold">=</span>
+                                                <span className="text-white">{calcVal.toLocaleString('ru-RU')} ₽</span>
+                                              </div>
+                                            )
+                                          })()}
                                           <input
                                             type="text"
                                             value={cr.costFormula || (cr.costValue ? String(cr.costValue) : '')}
@@ -1074,7 +1162,7 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Payer Select */}
-                                        <td className="sheet-cell p-0">
+                                        <td className={`sheet-cell p-0 ${isCrUnfilledPayer ? 'cell-unfilled' : ''}`}>
                                           <select
                                             value={cr.payerId || ''}
                                             onChange={e => {
@@ -1095,7 +1183,7 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Paid Checkbox */}
-                                        <td className="sheet-cell text-center p-0">
+                                        <td className={`sheet-cell text-center p-0 ${isCrUnfilledPaid ? 'cell-unfilled' : ''}`}>
                                           <input
                                             type="checkbox"
                                             checked={!!cr.paid}
