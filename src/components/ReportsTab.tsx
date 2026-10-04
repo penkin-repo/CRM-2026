@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Calendar, User, Building2, Wallet, CheckCircle2, Circle, Lock, RotateCw, Trash2, Plus, X } from 'lucide-react'
+import { Calendar, User, Building2, Wallet, CheckCircle2, Circle, Lock, RotateCw, Trash2, Plus, X, FileText, Copy, Check } from 'lucide-react'
 import type { Order, Client, Contractor, Payer, SalaryRecord } from '../types'
 import { calcOrderTotals, evalFormula } from '../utils/formula'
 import { api } from '../api'
@@ -111,6 +111,20 @@ export default function ReportsTab({
   const [payerAdjs, setPayerAdjs] = useState<PayerAdj[]>([])
   const [managerWorkAdjs, setManagerWorkAdjs] = useState<ManagerWorkAdj[]>([])
   const [contractorPayerAdjs, setContractorPayerAdjs] = useState<ContractorPayerAdj[]>([])
+
+  // Salary Detail Breakdown Modal state
+  const [showSalaryDetailModal, setShowSalaryDetailModal] = useState<boolean>(false)
+  const [copiedDetailText, setCopiedDetailText] = useState<boolean>(false)
+
+  // Close modal on Escape
+  useEffect(() => {
+    if (!showSalaryDetailModal) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSalaryDetailModal(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showSalaryDetailModal])
 
   // Salary DB Records & Presets state
   const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([])
@@ -287,6 +301,157 @@ export default function ReportsTab({
   const finalCalculatedSalary = useMemo(() => {
     return Math.round(monthlyStats.baseSalary + salaryPayerTotal + salaryManagerTotal + salaryContractorPayerTotal)
   }, [monthlyStats.baseSalary, salaryPayerTotal, salaryManagerTotal, salaryContractorPayerTotal])
+
+  // Generate Plain-Text Detail Breakdown for Copying / Notepad
+  const generateSalaryDetailText = () => {
+    const lines: string[] = []
+    lines.push(`================================================================`)
+    lines.push(`  ПОЛНЫЙ РАСЧЕТ ЗАРПЛАТНОЙ ВЕДОМОСТИ ЗА МЕСЯЦ: ${repMonth}`)
+    lines.push(`================================================================`)
+    lines.push(``)
+
+    // 1. БАЗОВЫЙ ФОНД
+    lines.push(`1. БАЗОВЫЙ ФОНД ЗАРПЛАТЫ (${salaryPercent}% ОТ ПРИБЫЛИ)`)
+    lines.push(`----------------------------------------------------------------`)
+    lines.push(`• Всего заказов за месяц: ${monthOrders.length}`)
+    lines.push(`• Общая сумма реализации: ${monthlyStats.totalSale.toLocaleString('ru-RU')} ₽`)
+    lines.push(`• Общие затраты (себестоимость): ${monthlyStats.totalCosts.toLocaleString('ru-RU')} ₽`)
+    lines.push(`• Общая прибыль: ${monthlyStats.totalProfit.toLocaleString('ru-RU')} ₽`)
+    lines.push(`• Расчет фонда: ${salaryPercent}% от ${monthlyStats.totalProfit.toLocaleString('ru-RU')} ₽ = ${monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽`)
+    lines.push(``)
+    lines.push(`  Построчный список заказов за ${repMonth}:`)
+    if (monthOrders.length === 0) {
+      lines.push(`  (Заказы за данный месяц отсутствуют)`)
+    } else {
+      monthOrders.forEach((o, idx) => {
+        const t = calcOrderTotals(o)
+        const clientName = clients.find(c => c.id === o.clientId)?.name || 'Не указан'
+        const prod = o.productName ? ` [${o.productName}]` : ''
+        lines.push(`  ${idx + 1}. Заказ #${o.id.slice(0, 6)} от ${o.date || '—'} (Клиент: ${clientName})${prod}`)
+        lines.push(`     Реализация: ${t.sale.toLocaleString('ru-RU')} ₽ | Затраты: ${t.costs.toLocaleString('ru-RU')} ₽ | Прибыль: ${t.profit.toLocaleString('ru-RU')} ₽`)
+      })
+    }
+    lines.push(``)
+    lines.push(`  ИТОГО БАЗОВЫЙ ФОНД (${salaryPercent}%): ${monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽`)
+    lines.push(``)
+
+    // 2. ПОСТУПЛЕНИЯ ПО СЧЕТАМ
+    lines.push(`2. ПОСТУПЛЕНИЯ ПО СЧЕТАМ (+ / -)`)
+    lines.push(`----------------------------------------------------------------`)
+    if (payerAdjs.length === 0) {
+      lines.push(`  (Счета не выбраны)`)
+    } else {
+      payerAdjs.forEach((adj, idx) => {
+        const p = payers.find(x => x.id === adj.payerId)
+        const pName = p ? p.name : 'Неизвестный счет'
+        const isMinus = adj.sign === '-'
+        const sum = getMonthlyPayerSum(adj.payerId)
+        const signedSum = isMinus ? -sum : sum
+        lines.push(`  ${idx + 1}. Счет: "${pName}" (${isMinus ? 'ВЫЧИТАЕТСЯ [-]' : 'ПРИБАВЛЯЕТСЯ [+]'}) = ${signedSum >= 0 ? '+' : ''}${signedSum.toLocaleString('ru-RU')} ₽`)
+
+        const relatedOrders = monthOrders.filter(o => o.paymentReceiverId === adj.payerId)
+        if (relatedOrders.length === 0) {
+          lines.push(`     Заказов с поступлением на этот счет нет`)
+        } else {
+          relatedOrders.forEach(o => {
+            const clientName = clients.find(c => c.id === o.clientId)?.name || '—'
+            const amt = Number(o.saleAmount) || 0
+            lines.push(`     • Заказ #${o.id.slice(0, 6)} от ${o.date || '—'} (${clientName}): ${amt.toLocaleString('ru-RU')} ₽`)
+          })
+        }
+      })
+    }
+    lines.push(``)
+    lines.push(`  ИТОГО ПОСТУПЛЕНИЯ ПО СЧЕТАМ: ${salaryPayerTotal >= 0 ? '+' : ''}${salaryPayerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(``)
+
+    // 3. РАБОТЫ МЕНЕДЖЕРА
+    lines.push(`3. РАБОТЫ МЕНЕДЖЕРА (+)`)
+    lines.push(`----------------------------------------------------------------`)
+    if (managerWorkAdjs.length === 0) {
+      lines.push(`  (Работы менеджера не добавлены)`)
+    } else {
+      managerWorkAdjs.forEach((adj, idx) => {
+        const co = contractors.find(c => c.id === adj.contractorId)
+        const coName = co ? co.name : 'Неизвестный'
+        const totalCo = getMonthlyContractorSum(adj.contractorId)
+        lines.push(`  ${idx + 1}. Исполнитель: "${coName}" = +${totalCo.toLocaleString('ru-RU')} ₽`)
+
+        const workRows: { order: Order; cr: any }[] = []
+        monthOrders.forEach(o => {
+          ;(o.contractors || []).forEach(cr => {
+            if (cr.contractorId === adj.contractorId) {
+              workRows.push({ order: o, cr })
+            }
+          })
+        })
+
+        if (workRows.length === 0) {
+          lines.push(`     Строк работ по данному исполнителю нет`)
+        } else {
+          workRows.forEach(item => {
+            const payerName = payers.find(p => p.id === item.cr.payerId)?.name || 'Счет не указан'
+            const cost = Number(item.cr.costValue) || 0
+            lines.push(`     • Заказ #${item.order.id.slice(0, 6)} (${item.order.date || '—'}): "${item.cr.description || 'Работа'}" = ${cost.toLocaleString('ru-RU')} ₽ (Счет списания: ${payerName})`)
+          })
+        }
+      })
+    }
+    lines.push(``)
+    lines.push(`  ИТОГО РАБОТЫ МЕНЕДЖЕРА: +${salaryManagerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(``)
+
+    // 4. ВЫПЛАТЫ ПОДРЯДЧИКАМ СО СЧЕТОВ
+    lines.push(`4. ВЫПЛАТЫ ПОДРЯДЧИКАМ СО СЧЕТОВ (+ / -)`)
+    lines.push(`----------------------------------------------------------------`)
+    if (contractorPayerAdjs.length === 0) {
+      lines.push(`  (Оплаты по счетам не добавлены)`)
+    } else {
+      contractorPayerAdjs.forEach((adj, idx) => {
+        const p = payers.find(x => x.id === adj.payerId)
+        const pName = p ? p.name : 'Неизвестный счет'
+        const isMinus = adj.sign === '-'
+        const sum = getMonthlyContractorPayerSum(adj.payerId)
+        const signedSum = isMinus ? -sum : sum
+        lines.push(`  ${idx + 1}. Счет списания: "${pName}" (${isMinus ? 'ВЫЧИТАЕТСЯ [-]' : 'ПРИБАВЛЯЕТСЯ [+]'}) = ${signedSum >= 0 ? '+' : ''}${signedSum.toLocaleString('ru-RU')} ₽`)
+
+        const crRows: { order: Order; cr: any }[] = []
+        monthOrders.forEach(o => {
+          ;(o.contractors || []).forEach(cr => {
+            if (cr.payerId === adj.payerId) {
+              crRows.push({ order: o, cr })
+            }
+          })
+        })
+
+        if (crRows.length === 0) {
+          lines.push(`     Списаний на подрядчиков с этого счета нет`)
+        } else {
+          crRows.forEach(item => {
+            const coName = contractors.find(c => c.id === item.cr.contractorId)?.name || 'Подрядчик не указан'
+            const cost = Number(item.cr.costValue) || 0
+            lines.push(`     • Заказ #${item.order.id.slice(0, 6)}: Подрядчик "${coName}" ("${item.cr.description || '—'}") = ${cost.toLocaleString('ru-RU')} ₽`)
+          })
+        }
+      })
+    }
+    lines.push(``)
+    lines.push(`  ИТОГО ВЫПЛАТЫ ПОДРЯДЧИКАМ: ${salaryContractorPayerTotal >= 0 ? '+' : ''}${salaryContractorPayerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(``)
+
+    // 5. ИТОГ К ВЫПЛАТЕ
+    lines.push(`================================================================`)
+    lines.push(`  ИТОГОВЫЙ РАСЧЕТ К ВЫПЛАТЕ:`)
+    lines.push(`  Базовый фонд (${salaryPercent}%):         ${monthlyStats.baseSalary.toLocaleString('ru-RU')} ₽`)
+    lines.push(`  Поступления по счетам:     ${salaryPayerTotal >= 0 ? '+' : ''}${salaryPayerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(`  Работы менеджера:          +${salaryManagerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(`  Выплаты подрядчикам:       ${salaryContractorPayerTotal >= 0 ? '+' : ''}${salaryContractorPayerTotal.toLocaleString('ru-RU')} ₽`)
+    lines.push(`----------------------------------------------------------------`)
+    lines.push(`  >>> ИТОГО К ВЫПЛАТЕ:       ${finalCalculatedSalary.toLocaleString('ru-RU')} ₽ <<<`)
+    lines.push(`================================================================`)
+
+    return lines.join('\n')
+  }
 
   // Save / Load Presets
   const handleSavePreset = () => {
@@ -996,7 +1161,15 @@ export default function ReportsTab({
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="bg-white hover:bg-[#fff9d6] text-[#1c1d1f] border border-[#b8bdc5] hover:border-[#d9a800] rounded px-3.5 py-1.5 text-xs font-bold cursor-pointer transition shadow-2xs flex items-center gap-1.5"
+                onClick={() => setShowSalaryDetailModal(true)}
+                title="Показать полную расшифровку и детализацию всех расчетов"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-600" /> Детализация расчета
+              </button>
               <button
                 type="button"
                 className="bg-gradient-to-b from-[#ffdb4d] to-[#ffcc00] hover:from-[#ffcc00] text-[#1c1d1f] border border-[#d9a800] rounded px-4 py-1.5 text-xs font-extrabold cursor-pointer transition shadow-2xs active:scale-95 flex items-center gap-1.5"
@@ -1073,6 +1246,83 @@ export default function ReportsTab({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Detail Text Modal for Notepad / Clipboard */}
+      {showSalaryDetailModal && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-3 animate-in fade-in"
+          onClick={() => setShowSalaryDetailModal(false)}
+        >
+          <div
+            className="bg-white border border-[#b8bdc5] rounded-md shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#f0f2f5] px-4 py-2.5 border-b border-[#b8bdc5] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" />
+                <h3 className="text-xs font-extrabold text-[#1c1d1f] uppercase tracking-wide">
+                  Полная расшифровка зарплатного расчета ({repMonth})
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const txt = generateSalaryDetailText()
+                    navigator.clipboard.writeText(txt)
+                    setCopiedDetailText(true)
+                    setTimeout(() => setCopiedDetailText(false), 2000)
+                  }}
+                  className={`px-3 py-1 rounded text-xs font-bold cursor-pointer transition flex items-center gap-1.5 border shadow-2xs ${
+                    copiedDetailText
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-white hover:bg-[#fff9d6] text-[#1c1d1f] border-[#b8bdc5] hover:border-[#d9a800]'
+                  }`}
+                  title="Скопировать весь текст расчета для блокнота или мессенджера"
+                >
+                  {copiedDetailText ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white" /> Скопировано в буфер!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-700" /> Скопировать весь текст
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSalaryDetailModal(false)}
+                  className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 cursor-pointer"
+                  title="Закрыть (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Plain Notepad style for easy copy/paste */}
+            <div className="flex-1 p-3 overflow-auto bg-[#fafafa]">
+              <pre className="font-mono text-xs text-slate-800 whitespace-pre-wrap select-all leading-relaxed p-3 bg-white border border-[#c9ced6] rounded shadow-inner">
+                {generateSalaryDetailText()}
+              </pre>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-[#f0f2f5] px-4 py-2 border-t border-[#b8bdc5] flex justify-between items-center text-xs text-slate-500">
+              <span>Текст отформатирован списком для удобной вставки в Блокнот, Telegram или почту</span>
+              <button
+                type="button"
+                onClick={() => setShowSalaryDetailModal(false)}
+                className="bg-white hover:bg-slate-100 text-[#1c1d1f] border border-[#b8bdc5] rounded px-3 py-1 text-xs font-bold cursor-pointer"
+              >
+                Закрыть
+              </button>
             </div>
           </div>
         </div>
