@@ -16,7 +16,7 @@ import {
   X,
   Images
 } from 'lucide-react'
-import type { Order, Client, Contractor, Payer, OrderContractorRow } from '../types'
+import type { Order, Client, Contractor, Payer, OrderContractorRow, User } from '../types'
 import AiOrderModal from './AiOrderModal'
 import ClientSearchSelect from './ClientSearchSelect'
 import ContractorSearchSelect from './ContractorSearchSelect'
@@ -24,6 +24,7 @@ import { ScreenshotBoardModal } from './ScreenshotBoardModal'
 import { formatOrderForGoogleSheets } from '../utils/googleSheetsExport'
 
 interface OrdersTabProps {
+  currentUser?: User
   orders: Order[]
   clients: Client[]
   contractors: Contractor[]
@@ -61,6 +62,7 @@ const EDITABLE_FIELDS = [
 ]
 
 export default function OrdersTab({
+  currentUser,
   orders,
   clients,
   contractors,
@@ -225,6 +227,8 @@ export default function OrdersTab({
         }
         if (!cr.paid) {
           errors.push(`Подрядчик №${num} (${coName}): оплата не произведена (нет отметки)`)
+        } else if (!cr.note || !cr.note.trim()) {
+          errors.push(`Подрядчик №${num} (${coName}): отмечена оплата, но не указано как оплачено (в графе "Примечание")`)
         }
       })
     }
@@ -287,6 +291,25 @@ export default function OrdersTab({
   const isCashPayer = (payerId: string) => {
     const p = payers.find(x => x.id === payerId)
     return p?.type === 'cash' || p?.type === 'card'
+  }
+
+  const isManagerContractor = (contractorId: string) => {
+    if (!contractorId) return false
+    const co = contractors.find(c => c.id === contractorId)
+    if (!co) return false
+    const nameLower = (co.name || '').toLowerCase()
+    const noteLower = (co.note || '').toLowerCase()
+    const uNameLower = (currentUser?.name || '').toLowerCase()
+    const uLoginLower = (currentUser?.username || '').toLowerCase()
+
+    return (
+      nameLower.includes('менеджер') ||
+      nameLower.includes('алексей') ||
+      (uNameLower.length > 2 && nameLower.includes(uNameLower)) ||
+      (uLoginLower.length > 2 && nameLower.includes(uLoginLower)) ||
+      noteLower.includes('менеджер') ||
+      noteLower.includes('сам')
+    )
   }
 
   // Deep Filter logic (includes searching inside sub-contractor records and fields)
@@ -1073,6 +1096,8 @@ export default function OrdersTab({
                                     const isCrUnfilledCost = !cr.costValue || Number(cr.costValue) <= 0
                                     const isCrUnfilledPayer = !cr.payerId
                                     const isCrUnfilledPaid = !cr.paid
+                                    const isCrUnfilledNote = !!cr.paid && (!cr.note || !cr.note.trim())
+                                    const isManagerCashWarning = isManagerContractor(cr.contractorId) && isCashPayer(cr.payerId)
 
                                     return (
                                       <tr key={cr.id} className="hover:bg-[#fff9d6] text-xs">
@@ -1161,25 +1186,35 @@ export default function OrdersTab({
                                           <div className="cell-truncate">{(cr.costValue || 0).toLocaleString('ru-RU')} ₽</div>
                                         </td>
 
-                                        {/* Payer Select */}
-                                        <td className={`sheet-cell p-0 ${isCrUnfilledPayer ? 'cell-unfilled' : ''}`}>
-                                          <select
-                                            value={cr.payerId || ''}
-                                            onChange={e => {
-                                              const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
-                                              const updated = { ...order, contractors: updatedRows }
-                                              onUpdateOrder(updated, `Обновлен плательщик подрядчика`)
-                                              commit(updated, `Обновлен плательщик подрядчика`)
-                                            }}
-                                            className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
-                                              !cr.payerId ? 'text-red-500' : 'text-[#1c1d1f]'
-                                            }`}
-                                          >
-                                            <option value="">-- Выберите плательщика --</option>
-                                            {payers.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
+                                        {/* Payer Select with Manager Cash Warning */}
+                                        <td className={`sheet-cell p-0 relative ${isCrUnfilledPayer ? 'cell-unfilled' : ''} ${isManagerCashWarning ? 'bg-amber-100/70 border-amber-400' : ''}`}>
+                                          <div className="flex items-center w-full h-full pr-1">
+                                            <select
+                                              value={cr.payerId || ''}
+                                              onChange={e => {
+                                                const updatedRows = (order.contractors || []).map(r => r.id === cr.id ? { ...r, payerId: e.target.value } : r)
+                                                const updated = { ...order, contractors: updatedRows }
+                                                onUpdateOrder(updated, `Обновлен плательщик подрядчика`)
+                                                commit(updated, `Обновлен плательщик подрядчика`)
+                                              }}
+                                              className={`w-full h-full text-xs px-1 outline-none bg-transparent cursor-pointer font-semibold ${
+                                                !cr.payerId ? 'text-red-500' : isManagerCashWarning ? 'text-amber-900 font-bold' : 'text-[#1c1d1f]'
+                                              }`}
+                                            >
+                                              <option value="">-- Выберите плательщика --</option>
+                                              {payers.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                              ))}
+                                            </select>
+                                            {isManagerCashWarning && (
+                                              <span
+                                                title="Внимание: работа менеджера не списывается наличными, она начисляется через зарплатную ведомость!"
+                                                className="text-amber-600 hover:text-amber-800 cursor-help shrink-0 pl-0.5 animate-pulse"
+                                              >
+                                                <AlertTriangle className="w-3.5 h-3.5" />
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
 
                                         {/* Paid Checkbox */}
@@ -1213,7 +1248,7 @@ export default function OrdersTab({
                                         </td>
 
                                         {/* Contractor Note Input (Syncs with Top Edit-Bar) */}
-                                        <td className={`sheet-cell p-0 ${isCrActive('crNote') ? 'sheet-cell-active' : ''}`}>
+                                        <td className={`sheet-cell p-0 ${isCrActive('crNote') ? 'sheet-cell-active' : ''} ${isCrUnfilledNote ? 'cell-unfilled' : ''}`}>
                                           <input
                                             type="text"
                                             value={cr.note || ''}
@@ -1231,8 +1266,8 @@ export default function OrdersTab({
                                               onUpdateOrder({ ...order, contractors: updatedRows }, `Обновлено примечание подрядчика`)
                                             }}
                                             onBlur={() => commit(order, 'Обновлено примечание подрядчика')}
-                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f]"
-                                            placeholder="Примечание..."
+                                            className="w-full h-full px-1 text-xs outline-none bg-transparent text-[#1c1d1f] placeholder-unfilled"
+                                            placeholder={cr.paid ? 'Укажите, как оплачено (счет, нал, карта)...' : 'Примечание...'}
                                           />
                                         </td>
 

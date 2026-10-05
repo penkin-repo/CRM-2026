@@ -628,6 +628,7 @@ export default function DashboardPage({ currentUser }: DashboardPageProps) {
       {/* Tab Contents */}
       {activeTab === 'orders' && (
         <OrdersTab
+          currentUser={currentUser}
           orders={orders}
           clients={clients}
           contractors={contractors}
